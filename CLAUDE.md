@@ -26,6 +26,7 @@
 │   ├── edu-admin/         # React 管理后台（端口 3000）
 │   ├── docker-compose.yml # PostgreSQL + Redis + MinIO
 │   └── sql/init.sql       # 数据库初始化（22 张表）
+├── docs/solutions/        # 已记录的解决方案和最佳实践（按类别组织，YAML frontmatter 可搜索）
 └── CLAUDE.md              # 本文件
 ```
 
@@ -223,4 +224,4 @@ simplify, loop, claude-api, pdf-to-ppt, skill-creator, update-config
 Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
 
 ## 二次开发
-例如：open claw 开发部分任务,不要从0开始写代码,要基于源码进行二次开发,先熟悉/Users/shaunl/Desktop/智谱AI/04-代码开发/001-JT-vibe coding/004-vibe-openclaw_高教平台demo_V1/claude-doc 文档中相关源码分析文档
+例如：open claw 开发部分任务,不要从0开始写代码,要基于源码进行二次开发,先熟悉/Users/shaunl/Desktop/智谱AI/04-代码开发/001-JT-vibe coding/004-vibe-openclaw_高教平台demo_V1/claude-doc 文档中相关源码分析文档，再根据需求进行二次开发。
