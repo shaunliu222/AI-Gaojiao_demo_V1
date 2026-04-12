@@ -401,13 +401,11 @@ INSERT INTO sys_role (code, name, description, sort_order) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- Default users (BCrypt hashed passwords)
--- admin123 -> $2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi
--- teacher123 -> $2a$10$VcdzH8Q.o4KEo6IstBAfhOI9oEqr.7mXE7rTZsMuFpLuWNwDAGbDa
--- student123 -> $2a$10$2IxlcBSQJENtiXsUXxYIjeVjmVqpEXJKXKYvNLgzYbzqEV8bFHD1a
+-- admin123, teacher123, student123
 INSERT INTO sys_user (username, password, name, email, status) VALUES
-    ('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', 'System Admin', 'admin@edu.ai', 1),
-    ('teacher', '$2a$10$VcdzH8Q.o4KEo6IstBAfhOI9oEqr.7mXE7rTZsMuFpLuWNwDAGbDa', 'Zhang Teacher', 'teacher@edu.ai', 1),
-    ('student', '$2a$10$2IxlcBSQJENtiXsUXxYIjeVjmVqpEXJKXKYvNLgzYbzqEV8bFHD1a', 'Li Student', 'student@edu.ai', 1)
+    ('admin', '$2a$10$zJuzTpEoibBAu6VJ6t0VqegAPmbWTuE8KaOtGcNostkLZPEuOH1uO', 'System Admin', 'admin@edu.ai', 1),
+    ('teacher', '$2a$10$whj3ui.qBUT7mUnOYiq8zu.Q.y2wdOc9aq6OZKKf3wgb1RCaztPtC', 'Zhang Teacher', 'teacher@edu.ai', 1),
+    ('student', '$2a$10$qyVVHyQDg7Dfs9DWxcwPeeSjrlr9yM3Mi00YOGuRlYRHhrBGJbh96', 'Li Student', 'student@edu.ai', 1)
 ON CONFLICT (username) DO NOTHING;
 
 -- Assign roles

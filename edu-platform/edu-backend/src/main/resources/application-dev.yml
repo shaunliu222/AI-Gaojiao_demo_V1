@@ -13,11 +13,6 @@ spring:
     console:
       enabled: true
       path: /h2-console
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
@@ -25,6 +20,8 @@ spring:
   sql:
     init:
       mode: always
+      schema-locations: classpath:schema-h2.sql
+      data-locations: classpath:data-h2.sql
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
@@ -45,9 +42,6 @@ sa-token:
   is-read-cookie: false
   is-read-header: true
   is-log: false
-  alone-redis:
-    # 不使用 Redis，Sa-Token 回退到内存存储
-    enable: false
 
 openclaw:
   gateway:
