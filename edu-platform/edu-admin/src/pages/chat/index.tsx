@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Input, Button, Avatar, Select, Typography, Space, Tag, Tooltip, Empty, Badge } from 'antd';
+import { Input, Button, Avatar, Select, Typography, Space, Tag, Tooltip, Badge } from 'antd';
 import { PlusOutlined, SearchOutlined, SendOutlined, PaperClipOutlined, LinkOutlined, StopOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
-import { mockSessions, mockMessages, mockAgents, mockStreamResponse } from '@/mocks/data';
+import { aiChatApi } from '@/services/request';
+import { mockAgents, mockStreamResponse } from '@/mocks/data';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -15,40 +16,72 @@ interface Message {
   references?: Array<{ title: string; source: string }>;
 }
 
-// Only show OpenClaw agents
-const openclawAgents = mockAgents.filter(a => a.agentType === 'openclaw');
-const publicAgents = openclawAgents.filter(a => a.isPublic && a.status === 'published');
-const myAgents = openclawAgents.filter(a => !a.isPublic || a.owner === 'teacher');
+interface ChatSession {
+  id: string | number;
+  title: string;
+  agentId?: string;
+  agentName?: string;
+  updatedAt?: string;
+  lastMessage?: string;
+}
 
-// Use Vite proxy to avoid CORS: /gateway/* → localhost:18789/*
-const GATEWAY_URL = '/gateway';
-const GATEWAY_TOKEN = '55dcc5b9e1a204de527c74b6c65232c7a72f516f00fc66c1'; // TODO: move to env/backend config
+// Agent list (still from mock for now — agent API is Phase 4)
+const openclawAgents = mockAgents.filter((a: any) => a.agentType === 'openclaw');
+const publicAgents = openclawAgents.filter((a: any) => a.isPublic && a.status === 'published');
+const myAgents = openclawAgents.filter((a: any) => !a.isPublic || a.owner === 'teacher');
 
 const ChatPage: React.FC = () => {
-  const [sessions, setSessions] = useState(mockSessions);
-  const [activeSession, setActiveSession] = useState<string>('s1');
-  const [messages, setMessages] = useState<Message[]>(mockMessages['s1'] || []);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSession, setActiveSession] = useState<string | number>('');
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState('main');
   const [gatewayStatus, setGatewayStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
+  const [useBackendProxy, setUseBackendProxy] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(scrollToBottom, [messages]);
 
-  // Check Gateway health
+  // Load sessions from backend
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const res: any = await aiChatApi.sessions();
+        const list = (res.data || []).map((s: any) => ({
+          id: s.id, title: s.title || '新对话', agentId: s.agentId,
+          agentName: s.agentId || 'Main Agent',
+          updatedAt: s.updatedAt?.slice(0, 16).replace('T', ' '),
+          lastMessage: s.lastMessage,
+        }));
+        setSessions(list);
+      } catch {
+        // Backend might not be running, keep empty
+      }
+    };
+    loadSessions();
+  }, []);
+
+  // Check Gateway health via backend proxy
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch(`${GATEWAY_URL}/healthz`, {
-          signal: AbortSignal.timeout(3000),
-          headers: { 'Authorization': `Bearer ${GATEWAY_TOKEN}` },
-        });
-        setGatewayStatus(res.ok ? 'connected' : 'disconnected');
+        const res: any = await aiChatApi.gatewayHealth();
+        const ok = res.data === true;
+        setGatewayStatus(ok ? 'connected' : 'disconnected');
+        setUseBackendProxy(true);
       } catch {
-        setGatewayStatus('disconnected');
+        // Backend not available, try direct gateway
+        try {
+          const directRes = await fetch('/gateway/healthz', { signal: AbortSignal.timeout(3000) });
+          setGatewayStatus(directRes.ok ? 'connected' : 'disconnected');
+          setUseBackendProxy(false);
+        } catch {
+          setGatewayStatus('disconnected');
+          setUseBackendProxy(false);
+        }
       }
     };
     checkHealth();
@@ -56,87 +89,71 @@ const ChatPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const selectedAgent = openclawAgents.find(a => a.name === selectedAgentId) ||
+  const selectedAgent: any = openclawAgents.find((a: any) => a.name === selectedAgentId) ||
     { name: 'Main Agent', avatar: '🤖', description: '与 AI 互动，探索无限创意' };
 
-  const handleSessionClick = (sid: string) => {
+  const handleSessionClick = (sid: string | number) => {
     setActiveSession(sid);
-    setMessages(mockMessages[sid] || []);
+    setMessages([]);
   };
 
   const handleNewSession = () => {
-    const newId = `s${Date.now()}`;
-    setSessions([{ id: newId, title: '新对话', agentId: 1, agentName: selectedAgent.name, updatedAt: new Date().toLocaleString(), messageCount: 0 }, ...sessions]);
+    const newId = `local-${Date.now()}`;
+    setSessions(prev => [{ id: newId, title: '新对话', agentName: selectedAgent.name, updatedAt: new Date().toLocaleString() }, ...prev]);
     setActiveSession(newId);
     setMessages([]);
+  };
+
+  const handleDeleteSession = async (sid: string | number) => {
+    if (typeof sid === 'number') {
+      try { await aiChatApi.deleteSession(sid); } catch { /* ignore */ }
+    }
+    setSessions(prev => prev.filter(s => s.id !== sid));
+    if (activeSession === sid) { setActiveSession(''); setMessages([]); }
   };
 
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isStreaming) return;
     const userMsg: Message = { id: `m${Date.now()}`, role: 'user', content: inputValue, timestamp: new Date().toLocaleTimeString() };
     setMessages(prev => [...prev, userMsg]);
+    const sentText = inputValue;
     setInputValue('');
     setIsStreaming(true);
 
     const assistantMsg: Message = { id: `m${Date.now() + 1}`, role: 'assistant', content: '', timestamp: new Date().toLocaleTimeString() };
     setMessages(prev => [...prev, assistantMsg]);
 
-    // Try real OpenClaw Gateway first, fall back to mock
-    try {
-      const res = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GATEWAY_TOKEN}`,
-          'x-openclaw-agent-id': selectedAgentId === 'main' ? '' : selectedAgentId,
-        },
-        body: JSON.stringify({
-          model: selectedAgentId === 'main' ? 'openclaw' : `openclaw/${selectedAgentId}`,
-          messages: [{ role: 'user', content: inputValue }],
-          stream: true,
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
+    const allMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
 
-      if (res.ok) {
-        const contentType = res.headers.get('content-type') || '';
-
-        if (contentType.includes('text/event-stream') && res.body) {
-          // SSE streaming response
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let content = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-            for (const line of lines) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(data);
-                const delta = parsed.choices?.[0]?.delta?.content || '';
-                content += delta;
-                setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
-              } catch { /* skip malformed SSE chunks */ }
+    // Try backend proxy first
+    if (useBackendProxy) {
+      try {
+        let content = '';
+        await aiChatApi.chatStream(
+          { model: 'openclaw', messages: allMessages, agentId: selectedAgentId === 'main' ? undefined : selectedAgentId },
+          (chunk) => {
+            try {
+              const parsed = JSON.parse(chunk);
+              const delta = parsed.choices?.[0]?.delta?.content || parsed.data || '';
+              content += delta;
+              setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
+            } catch {
+              content += chunk;
+              setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
             }
+          },
+          () => setIsStreaming(false),
+          (err) => {
+            setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content: `Error: ${err}` } : m));
+            setIsStreaming(false);
           }
-        } else {
-          // Non-streaming JSON response
-          const data = await res.json();
-          const content = data.choices?.[0]?.message?.content || 'No response';
-          setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
-        }
-        setIsStreaming(false);
+        );
         return;
-      }
-    } catch {
-      // Gateway not available, use mock
+      } catch { /* fall through to mock */ }
     }
 
     // Mock fallback
-    const stream = mockStreamResponse(inputValue);
+    const stream = mockStreamResponse(sentText);
     const reader = stream.getReader();
     let content = '';
     while (true) {
@@ -145,14 +162,10 @@ const ChatPage: React.FC = () => {
       content += value;
       setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
     }
-    setMessages(prev => prev.map(m => m.id === assistantMsg.id ? {
-      ...m, content,
-      references: [{ title: '知识库检索结果', source: '课程知识图谱' }],
-    } : m));
     setIsStreaming(false);
-  }, [inputValue, isStreaming, selectedAgentId]);
+  }, [inputValue, isStreaming, selectedAgentId, messages, useBackendProxy]);
 
-  const filteredSessions = sessions.filter(s => s.title.includes(searchText));
+  const filteredSessions = sessions.filter(s => !searchText || (s.title || '').includes(searchText));
   const isNewChat = messages.length === 0;
   const quickPrompts = ['这门课程的核心知识点有哪些？', '帮我梳理一下学习路径', '解释一下机器学习中的梯度下降', '推荐一些相关的学习资源'];
 
@@ -168,7 +181,6 @@ const ChatPage: React.FC = () => {
         </div>
         <div style={{ padding: '0 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text type="secondary" style={{ fontSize: 13 }}>历史对话</Text>
-          <SearchOutlined style={{ color: '#999', cursor: 'pointer' }} />
         </div>
         <Input placeholder="搜索对话..." value={searchText} onChange={e => setSearchText(e.target.value)}
           size="small" prefix={<SearchOutlined />} style={{ margin: '0 16px 8px', width: 'calc(100% - 32px)' }} allowClear />
@@ -184,29 +196,32 @@ const ChatPage: React.FC = () => {
               <div><Text type="secondary" style={{ fontSize: 11 }}>{item.agentName} · {item.updatedAt}</Text></div>
             </div>
           ))}
+          {filteredSessions.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: '#999', fontSize: 13 }}>暂无对话记录</div>}
         </div>
       </div>
 
       {/* Chat Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Top Bar - Agent Selector Only (no model selector) */}
+        {/* Top Bar */}
         <div style={{ padding: '10px 20px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 12 }}>
           <Select value={selectedAgentId} onChange={setSelectedAgentId} style={{ width: 260 }} variant="borderless"
             popupMatchSelectWidth={320} optionLabelProp="label"
             options={[
               { label: <span style={{ fontWeight: 600, fontSize: 12, color: '#999' }}>--- 公共 Agent ---</span>, options:
                 [{ label: '🤖 Main Agent (默认)', value: 'main' },
-                ...publicAgents.map(a => ({ label: `${a.avatar} ${a.name}`, value: a.name }))],
+                ...publicAgents.map((a: any) => ({ label: `${a.avatar} ${a.name}`, value: a.name }))],
               },
               { label: <span style={{ fontWeight: 600, fontSize: 12, color: '#999' }}>--- 我的 Agent ---</span>, options:
-                myAgents.map(a => ({ label: `${a.avatar} ${a.name}`, value: a.name })),
+                myAgents.map((a: any) => ({ label: `${a.avatar} ${a.name}`, value: a.name })),
               },
             ]}
           />
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Badge status={gatewayStatus === 'connected' ? 'success' : gatewayStatus === 'checking' ? 'processing' : 'error'} />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {gatewayStatus === 'connected' ? 'Gateway 已连接' : gatewayStatus === 'checking' ? '检查中...' : 'Gateway 未连接 (Mock 模式)'}
+              {gatewayStatus === 'connected'
+                ? (useBackendProxy ? '后端代理已连接' : 'Gateway 直连')
+                : gatewayStatus === 'checking' ? '检查中...' : 'Mock 模式'}
             </Text>
           </div>
         </div>
@@ -248,7 +263,7 @@ const ChatPage: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Prompts (new chat only) */}
+        {/* Quick Prompts */}
         {isNewChat && (
           <div style={{ padding: '0 40px 8px', textAlign: 'center' }}>
             <Text type="secondary" style={{ fontSize: 12 }}>猜你想问</Text>

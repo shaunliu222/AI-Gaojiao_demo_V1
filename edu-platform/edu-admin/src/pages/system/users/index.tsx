@@ -1,41 +1,100 @@
-import React, { useState } from 'react';
-import { Table, Tag, Input, Button, Space, Drawer, Form, Select, Tree, Tabs, Modal, message } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Table, Tag, Input, Button, Space, Drawer, Form, Select, Tree, Tabs, message, Popconfirm } from 'antd';
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
-import { mockUsers } from '@/mocks/data';
+import { userApi, roleApi, orgApi } from '@/services/request';
 
 const UsersPage: React.FC = () => {
-  const [users] = useState(mockUsers);
+  const [users, setUsers] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('users');
+  const [roles, setRoles] = useState<any[]>([]);
+  const [orgTree, setOrgTree] = useState<any[]>([]);
   const [form] = Form.useForm();
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res: any = await userApi.list({ page, size: 20, keyword: search || undefined });
+      setUsers(res.data?.list || []);
+      setTotal(res.data?.total || 0);
+    } catch { message.error('Failed to load users'); }
+    setLoading(false);
+  }, [page, search]);
+
+  const fetchRoles = async () => {
+    try {
+      const res: any = await roleApi.list();
+      setRoles(res.data || []);
+    } catch { message.error('Failed to load roles'); }
+  };
+
+  const fetchOrgs = async () => {
+    try {
+      const res: any = await orgApi.tree();
+      setOrgTree(formatOrgTree(res.data || []));
+    } catch { message.error('Failed to load orgs'); }
+  };
+
+  const formatOrgTree = (nodes: any[]): any[] =>
+    nodes.map(n => ({ title: n.name, key: String(n.id), children: formatOrgTree(n.children || []) }));
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => { if (activeTab === 'roles') fetchRoles(); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'orgs') fetchOrgs(); }, [activeTab]);
+
+  const handleCreate = async () => {
+    try {
+      const values = await form.validateFields();
+      if (editingUser) {
+        await userApi.update(editingUser.id, values);
+        message.success('更新成功');
+      } else {
+        await userApi.create({ ...values, password: values.password || 'password123' });
+        message.success('添加成功');
+      }
+      setDrawerOpen(false);
+      form.resetFields();
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      message.error(err.response?.data?.message || '操作失败');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await userApi.delete(id);
+      message.success('删除成功');
+      fetchUsers();
+    } catch { message.error('删除失败'); }
+  };
+
+  const openEdit = (record: any) => {
+    setEditingUser(record);
+    form.setFieldsValue(record);
+    setDrawerOpen(true);
+  };
 
   const userColumns = [
     { title: '用户名', dataIndex: 'username' },
     { title: '姓名', dataIndex: 'name' },
     { title: '邮箱', dataIndex: 'email' },
-    { title: '角色', dataIndex: 'role', render: (t: string) => <Tag color={t === 'admin' ? 'purple' : t === 'teacher' ? 'blue' : 'green'}>{t}</Tag> },
-    { title: '学院', dataIndex: 'org' },
-    { title: '状态', dataIndex: 'status', render: (v: number) => <Tag color={v ? 'green' : 'red'}>{v ? '正常' : '禁用'}</Tag> },
-    { title: '操作', render: () => <Space><Button type="link" size="small" icon={<EditOutlined />}>编辑</Button><Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button></Space> },
+    { title: '状态', dataIndex: 'status', render: (v: number) => <Tag color={v === 1 ? 'green' : 'red'}>{v === 1 ? '正常' : '禁用'}</Tag> },
+    { title: '创建时间', dataIndex: 'createdAt', render: (t: string) => t?.slice(0, 10) },
+    { title: '操作', render: (_: any, record: any) => (
+      <Space>
+        <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>编辑</Button>
+        <Popconfirm title="确认删除?" onConfirm={() => handleDelete(record.id)}>
+          <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+        </Popconfirm>
+      </Space>
+    ) },
   ];
-
-  const roles = [
-    { code: 'admin', name: '系统管理员', userCount: 1 },
-    { code: 'info_center', name: '信息中心', userCount: 2 },
-    { code: 'teacher', name: '教师', userCount: 15 },
-    { code: 'student', name: '学生', userCount: 238 },
-  ];
-
-  const orgTree = [
-    { title: 'University', key: '1', children: [
-      { title: '计算机学院', key: '2' },
-      { title: '信息工程学院', key: '3' },
-      { title: '数学学院', key: '4' },
-    ] },
-  ];
-
-  const filtered = users.filter(u => !search || u.name.includes(search) || u.username.includes(search));
 
   return (
     <div>
@@ -49,19 +108,20 @@ const UsersPage: React.FC = () => {
 
       {activeTab === 'users' && (<>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
-          <Input placeholder="搜索用户..." prefix={<SearchOutlined />} value={search} onChange={e => setSearch(e.target.value)} style={{ width: 240 }} allowClear />
+          <Input placeholder="搜索用户..." prefix={<SearchOutlined />} value={search} onChange={e => setSearch(e.target.value)} style={{ width: 240 }} allowClear onPressEnter={() => { setPage(1); fetchUsers(); }} />
           <Button icon={<UploadOutlined />}>批量导入</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawerOpen(true)} style={{ background: '#1a1a2e' }}>添加用户</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingUser(null); form.resetFields(); setDrawerOpen(true); }} style={{ background: '#1a1a2e' }}>添加用户</Button>
         </div>
-        <Table dataSource={filtered} columns={userColumns} rowKey="id" size="small" />
+        <Table dataSource={users} columns={userColumns} rowKey="id" size="small" loading={loading}
+          pagination={{ current: page, total, pageSize: 20, onChange: setPage }} />
       </>)}
 
       {activeTab === 'roles' && (
-        <Table dataSource={roles} rowKey="code" size="small" columns={[
+        <Table dataSource={roles} rowKey="id" size="small" columns={[
           { title: '角色编码', dataIndex: 'code' },
           { title: '角色名称', dataIndex: 'name' },
-          { title: '用户数', dataIndex: 'userCount' },
-          { title: '操作', render: () => <Button type="link" size="small">配置权限</Button> },
+          { title: '描述', dataIndex: 'description' },
+          { title: '状态', dataIndex: 'status', render: (v: number) => <Tag color={v === 1 ? 'green' : 'red'}>{v === 1 ? '正常' : '禁用'}</Tag> },
         ]} />
       )}
 
@@ -72,13 +132,14 @@ const UsersPage: React.FC = () => {
         </div>
       )}
 
-      <Drawer title="添加用户" open={drawerOpen} onClose={() => setDrawerOpen(false)} width={400} extra={<Button type="primary" onClick={() => { message.success('添加成功（Mock）'); setDrawerOpen(false); }} style={{ background: '#1a1a2e' }}>保存</Button>}>
+      <Drawer title={editingUser ? '编辑用户' : '添加用户'} open={drawerOpen} onClose={() => setDrawerOpen(false)} width={400}
+        extra={<Button type="primary" onClick={handleCreate} style={{ background: '#1a1a2e' }}>保存</Button>}>
         <Form form={form} layout="vertical">
-          <Form.Item name="username" label="用户名" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="username" label="用户名" rules={[{ required: true }]}><Input disabled={!!editingUser} /></Form.Item>
+          {!editingUser && <Form.Item name="password" label="密码" rules={[{ required: true }]}><Input.Password /></Form.Item>}
           <Form.Item name="name" label="姓名" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="email" label="邮箱"><Input /></Form.Item>
-          <Form.Item name="role" label="角色"><Select options={roles.map(r => ({ label: r.name, value: r.code }))} /></Form.Item>
-          <Form.Item name="org" label="所属学院"><Select options={[{ label: '计算机学院', value: 'CS' }, { label: '信息工程学院', value: 'IE' }, { label: '数学学院', value: 'MATH' }]} /></Form.Item>
+          <Form.Item name="phone" label="电话"><Input /></Form.Item>
         </Form>
       </Drawer>
     </div>
