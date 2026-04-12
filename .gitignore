@@ -1,0 +1,28 @@
+# Environment
+.env
+edu-platform/.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Build outputs
+edu-platform/edu-backend/target/
+edu-platform/edu-admin/dist/
+edu-platform/edu-admin/node_modules/
+
+# OpenClaw build
+openclaw/node_modules/
+openclaw/dist/
+openclaw/.turbo/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Context (review artifacts)
+.context/

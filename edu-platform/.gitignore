@@ -1,0 +1,19 @@
+# Environment variables (contains secrets)
+.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Build
+edu-backend/target/
+edu-admin/dist/
+edu-admin/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
