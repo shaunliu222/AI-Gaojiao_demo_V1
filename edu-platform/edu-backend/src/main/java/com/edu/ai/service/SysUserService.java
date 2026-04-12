@@ -46,7 +46,7 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> {
         return baseMapper.selectPermissionCodesByUserId(userId);
     }
 
-    public IPage<SysUser> pageUsers(long page, long size, String keyword, String roleCode) {
+    public IPage<SysUser> pageUsers(long page, long size, String keyword) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(keyword)) {
             wrapper.and(w -> w.like(SysUser::getUsername, keyword)

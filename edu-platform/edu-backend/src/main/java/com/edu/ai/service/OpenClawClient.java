@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -45,7 +46,7 @@ public class OpenClawClient {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)
-                .block();
+                .block(Duration.ofSeconds(60));
     }
 
     /**

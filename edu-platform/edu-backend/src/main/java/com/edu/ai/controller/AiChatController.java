@@ -34,7 +34,8 @@ public class AiChatController {
     private final AiChatSessionService sessionService;
     private final ModelUsageService modelUsageService;
 
-    private final ExecutorService executor = Executors.newCachedThreadPool();
+    private final ExecutorService executor = Executors.newFixedThreadPool(
+            Runtime.getRuntime().availableProcessors() * 2);
 
     /**
      * Synchronous chat proxy.
@@ -49,13 +50,16 @@ public class AiChatController {
         String userMessage = getLastUserMessage(request.getMessages());
         SecurityCheckService.CheckResult inputCheck = securityCheckService.checkInput(userMessage, userId);
         if (!inputCheck.isPassed()) {
-            return R.fail(403, "Content blocked by security policy: " + inputCheck.getHitWord());
+            return R.fail(403, "Your message was blocked by security policy");
         }
 
         // 2. Forward to OpenClaw
         String response = openClawClient.chatCompletion(request);
 
-        // 3. Record usage (async)
+        // 3. Output safety check
+        securityCheckService.checkOutput(response, userId, null);
+
+        // 4. Record usage (async)
         modelUsageService.recordUsage(userId, null, null, 0, 0, BigDecimal.ZERO);
 
         return R.ok(response);
@@ -78,7 +82,7 @@ public class AiChatController {
             executor.execute(() -> {
                 try {
                     emitter.send(SseEmitter.event()
-                            .data("{\"error\":\"Content blocked by security policy: " + inputCheck.getHitWord() + "\"}"));
+                            .data("{\"error\":\"Your message was blocked by security policy\"}"));
                     emitter.complete();
                 } catch (IOException e) {
                     emitter.completeWithError(e);

@@ -44,6 +44,7 @@ public class ModelService extends ServiceImpl<ModelConfigMapper, ModelConfig> {
         if (model.getIsDefault() == null) model.setIsDefault(false);
         if (model.getIsPublic() == null) model.setIsPublic(true);
         save(model);
+        model.setApiKey("****");
         return model;
     }
 
@@ -96,12 +97,7 @@ public class ModelService extends ServiceImpl<ModelConfigMapper, ModelConfig> {
 
     private String maskApiKey(String encryptedKey) {
         if (!StringUtils.hasText(encryptedKey)) return "";
-        try {
-            String decrypted = CryptoUtil.decrypt(encryptedKey);
-            if (decrypted.length() <= 8) return "****";
-            return decrypted.substring(0, 4) + "****" + decrypted.substring(decrypted.length() - 4);
-        } catch (Exception e) {
-            return "****";
-        }
+        // Don't decrypt just to mask — show truncated ciphertext indicator
+        return "sk-****" + encryptedKey.substring(Math.max(0, encryptedKey.length() - 4));
     }
 }

@@ -31,9 +31,8 @@ public class SysUserController {
     public R<PageResult<SysUser>> list(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String roleCode) {
-        IPage<SysUser> result = sysUserService.pageUsers(page, size, keyword, roleCode);
+            @RequestParam(required = false) String keyword) {
+        IPage<SysUser> result = sysUserService.pageUsers(page, size, keyword);
         // Clear password from response
         result.getRecords().forEach(u -> u.setPassword(null));
         return R.ok(PageResult.of(result));
@@ -113,12 +112,14 @@ public class SysUserController {
 
     @Operation(summary = "Get user's role IDs")
     @GetMapping("/{id}/roles")
+    @SaCheckRole(value = {"admin", "info_center"}, mode = cn.dev33.satoken.annotation.SaMode.OR)
     public R<List<Long>> getUserRoles(@PathVariable Long id) {
         return R.ok(sysUserService.getUserRoleIds(id));
     }
 
     @Operation(summary = "Get user's org IDs")
     @GetMapping("/{id}/orgs")
+    @SaCheckRole(value = {"admin", "info_center"}, mode = cn.dev33.satoken.annotation.SaMode.OR)
     public R<List<Long>> getUserOrgs(@PathVariable Long id) {
         return R.ok(sysUserService.getUserOrgIds(id));
     }

@@ -1,15 +1,12 @@
 package com.edu.ai.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.edu.ai.entity.SecAuditLog;
 import com.edu.ai.entity.SecKeyword;
-import com.edu.ai.mapper.SecAuditLogMapper;
 import com.edu.ai.mapper.SecKeywordMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -21,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SecurityCheckService {
 
     private final SecKeywordMapper keywordMapper;
-    private final SecAuditLogMapper auditLogMapper;
+    private final AuditLogService auditLogService;
 
     // Simple keyword set for matching (can upgrade to Trie for large datasets)
     private volatile Set<KeywordEntry> keywords = ConcurrentHashMap.newKeySet();
@@ -50,7 +47,7 @@ public class SecurityCheckService {
         for (KeywordEntry kw : keywords) {
             if (lower.contains(kw.word)) {
                 // Log the hit
-                logAudit(userId, null, text, null, kw.word, kw.severity);
+                auditLogService.logAudit(userId, null, text, null, kw.word, kw.severity);
                 if ("block".equals(kw.severity)) {
                     return CheckResult.blocked(kw.word, kw.category);
                 } else if ("warn".equals(kw.severity)) {
@@ -68,26 +65,13 @@ public class SecurityCheckService {
         String lower = text.toLowerCase();
         for (KeywordEntry kw : keywords) {
             if (lower.contains(kw.word)) {
-                logAudit(userId, sessionId, null, text, kw.word, kw.severity);
+                auditLogService.logAudit(userId, sessionId, null, text, kw.word, kw.severity);
                 if ("block".equals(kw.severity)) {
                     return CheckResult.blocked(kw.word, kw.category);
                 }
             }
         }
         return CheckResult.pass();
-    }
-
-    @Async
-    public void logAudit(Long userId, String sessionId, String inputText,
-                         String outputText, String hitRule, String action) {
-        SecAuditLog auditLog = new SecAuditLog();
-        auditLog.setUserId(userId);
-        auditLog.setSessionId(sessionId);
-        auditLog.setInputText(inputText);
-        auditLog.setOutputText(outputText);
-        auditLog.setHitRule(hitRule);
-        auditLog.setActionTaken(action);
-        auditLogMapper.insert(auditLog);
     }
 
     @Data

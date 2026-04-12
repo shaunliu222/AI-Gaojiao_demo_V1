@@ -16,9 +16,6 @@ public class CryptoUtil {
     private static final int GCM_TAG_LENGTH = 128;
     private static final int IV_LENGTH = 12;
 
-    // Default key (should be overridden via environment variable in production)
-    private static final String DEFAULT_KEY = "edu-ai-platform-secret-key-0001!";
-
     private static String secretKey;
 
     public static void setSecretKey(String key) {
@@ -33,7 +30,9 @@ public class CryptoUtil {
         if (envKey != null && !envKey.isEmpty()) {
             return envKey;
         }
-        return DEFAULT_KEY;
+        throw new IllegalStateException(
+                "CRYPTO_SECRET_KEY environment variable is not set. " +
+                "Set it to a 32-character secret before using API key encryption.");
     }
 
     public static String encrypt(String plainText) {
