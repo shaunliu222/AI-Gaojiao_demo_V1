@@ -26,7 +26,7 @@ interface ChatSession {
 }
 
 // Agent list loaded from API
-const defaultAgent = { name: 'Main Agent', avatar: '🤖', description: '与 AI 互动，探索无限创意' };
+const defaultAgent = { name: 'Main Agent', avatar: '🤖', description: 'OpenClaw Gateway 默认智能体，由 OpenClaw 本地配置决定其能力和人设' };
 
 const ChatPage: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
