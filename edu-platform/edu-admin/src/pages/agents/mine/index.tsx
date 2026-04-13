@@ -191,32 +191,37 @@ const AgentMinePage: React.FC = () => {
             <Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ minHeight: 44, marginBottom: 8 }}>{agent.description || '暂无描述'}</Paragraph>
             {agent.config?.primaryModel && <div style={{ fontSize: 12, marginBottom: 4 }}>主模型: <Tag>{agent.config.primaryModel}</Tag></div>}
             {agent.category && <div style={{ fontSize: 12, marginBottom: 8 }}>分类: <Tag>{agent.category}</Tag></div>}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0f0f0', paddingTop: 8, marginTop: 8 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>{agent.useCount || 0} 使用</Text>
-              <Space>
-                <Button type="link" size="small" icon={<EditOutlined />} onClick={(e) => {
+              <Space size={4}>
+                <Button size="small" onClick={(e) => {
                   e.stopPropagation();
-                  message.info('编辑功能：请删除后重新创建（完整编辑表单开发中）');
+                  e.preventDefault();
+                  message.info('编辑功能开发中，请先删除后重新创建');
                 }}>编辑</Button>
-                <Button type="link" size="small" icon={<SendOutlined />} onClick={async (e) => {
+                <Button size="small" type="primary" style={{ background: '#52c41a', borderColor: '#52c41a' }} onClick={async (e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   try {
                     await agentApi.publish(agent.id, { channelType: 'web' });
                     await agentApi.update(agent.id, { status: 'published', isPublic: true });
-                    message.success('已发布');
+                    message.success('发布成功！');
                     const res: any = await agentApi.list({ page: 1, size: 100 });
                     setAgents(res.data?.list || []);
-                  } catch { message.error('发布失败'); }
+                  } catch (err) { message.error('发布失败'); }
                 }}>发布</Button>
-                <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={(e) => {
+                <Button size="small" danger onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   Modal.confirm({
                     title: '确认删除',
-                    content: `确定要删除「${agent.name}」吗？`,
+                    content: `确定要删除「${agent.name}」吗？此操作不可恢复。`,
+                    okText: '确认删除',
+                    okType: 'danger',
                     onOk: async () => {
                       try {
                         await agentApi.delete(agent.id);
-                        message.success('已删除');
+                        message.success(`「${agent.name}」已删除`);
                         const res: any = await agentApi.list({ page: 1, size: 100 });
                         setAgents(res.data?.list || []);
                       } catch { message.error('删除失败'); }
