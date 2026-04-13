@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, Spin } from 'antd';
+import { ConfigProvider, Spin, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import MainLayout from '@/layouts/MainLayout';
 import LoginPage from '@/pages/login';
@@ -38,6 +38,7 @@ const App: React.FC = () => {
         fontSize: 14,
       },
     }}>
+      <AntApp>
       <BrowserRouter>
         <Suspense fallback={<Loading />}>
           <Routes>
@@ -73,6 +74,7 @@ const App: React.FC = () => {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   );
 };

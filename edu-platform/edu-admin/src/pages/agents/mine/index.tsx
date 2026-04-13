@@ -194,28 +194,22 @@ const AgentMinePage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0f0f0', paddingTop: 8, marginTop: 8, position: 'relative', zIndex: 10 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>{agent.useCount || 0} 使用</Text>
               <Space size={4}>
-                <Button size="small" onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
+                <Button size="small" onClick={() => {
                   message.info('编辑功能开发中，请先删除后重新创建');
                 }}>编辑</Button>
-                <Button size="small" type="primary" style={{ background: '#52c41a', borderColor: '#52c41a' }} onClick={async (e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
+                <Button size="small" type="primary" style={{ background: '#52c41a', borderColor: '#52c41a' }} onClick={async () => {
                   try {
                     await agentApi.publish(agent.id, { channelType: 'web' });
                     await agentApi.update(agent.id, { status: 'published', isPublic: true });
                     message.success('发布成功！');
                     const res: any = await agentApi.list({ page: 1, size: 100 });
                     setAgents(res.data?.list || []);
-                  } catch (err) { message.error('发布失败'); }
+                  } catch { message.error('发布失败'); }
                 }}>发布</Button>
-                <Button size="small" danger onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
+                <Button size="small" danger onClick={() => {
                   Modal.confirm({
                     title: '确认删除',
-                    content: `确定要删除「${agent.name}」吗？此操作不可恢复。`,
+                    content: `确定要删除「${agent.name}」吗？`,
                     okText: '确认删除',
                     okType: 'danger',
                     onOk: async () => {
