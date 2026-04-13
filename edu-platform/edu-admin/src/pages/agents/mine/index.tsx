@@ -74,17 +74,25 @@ const AgentMinePage: React.FC = () => {
     return matchSearch && matchStatus;
   });
 
-  const handleCreate = () => {
+  const handleCreate = (publish = false) => {
     form.validateFields().then(async (values) => {
       try {
-        await agentApi.create({ ...values, agentType, status: values.status || 'draft', isPublic: values.isPublic ?? false });
-        message.success('智能体创建成功');
+        const status = publish ? 'published' : 'draft';
+        const isPublic = publish ? (values.visibility === 'public') : false;
+        const res: any = await agentApi.create({ ...values, agentType, status, isPublic });
+        if (publish && res.data?.id) {
+          const channels = values.publishChannels || ['web'];
+          for (const ch of channels) {
+            await agentApi.publish(res.data.id, { channelType: ch });
+          }
+        }
+        message.success(publish ? '智能体已发布' : '草稿已保存');
         setCreateOpen(false);
         setStep(0);
         form.resetFields();
-        agentApi.list({ page: 1, size: 100 }).then((res: any) => setAgents(res.data?.list || []));
+        agentApi.list({ page: 1, size: 100 }).then((r: any) => setAgents(r.data?.list || []));
       } catch (err: any) { message.error(err.response?.data?.message || '创建失败'); }
-    });
+    }).catch(() => { message.warning('请填写必填项'); });
   };
 
   const resetCreate = () => { setCreateOpen(false); setStep(0); setAgentType('openclaw'); form.resetFields(); };
@@ -332,7 +340,7 @@ const AgentMinePage: React.FC = () => {
           {step < maxStep ? (
             <Button type="primary" onClick={() => setStep(step + 1)} style={{ background: '#1a1a2e' }}>下一步</Button>
           ) : (
-            <><Button onClick={handleCreate}>保存草稿</Button><Button type="primary" onClick={handleCreate} style={{ background: '#1a1a2e' }}>发布</Button></>
+            <><Button onClick={() => handleCreate(false)}>保存草稿</Button><Button type="primary" onClick={() => handleCreate(true)} style={{ background: '#1a1a2e' }}>发布</Button></>
           )}
         </div>
       </Modal>
