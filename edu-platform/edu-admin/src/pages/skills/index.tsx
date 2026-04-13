@@ -31,15 +31,29 @@ const SkillsPage: React.FC = () => {
     return matchSearch && matchType && matchOwner;
   });
 
+  const [editingSkill, setEditingSkill] = useState<any>(null);
+
+  const handleEdit = (skill: any) => {
+    setEditingSkill(skill);
+    form.setFieldsValue({ name: skill.name, description: skill.description, type: skill.skillType, isPublic: skill.isPublic });
+    setCreateOpen(true);
+  };
+
   const handleCreate = () => {
     form.validateFields().then(async (values) => {
       try {
-        await skillApi.create({ ...values, skillType: values.type, isPublic: values.isPublic ?? true });
-        message.success('Skill 创建成功');
+        if (editingSkill) {
+          await skillApi.update(editingSkill.id, { ...values, skillType: values.type });
+          message.success('更新成功');
+        } else {
+          await skillApi.create({ ...values, skillType: values.type, isPublic: values.isPublic ?? true });
+          message.success('Skill 创建成功');
+        }
         setCreateOpen(false);
+        setEditingSkill(null);
         form.resetFields();
         skillApi.list().then((res: any) => setSkills(res.data || []));
-      } catch { message.error('创建失败'); }
+      } catch { message.error('操作失败'); }
     });
   };
 
@@ -59,7 +73,7 @@ const SkillsPage: React.FC = () => {
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Skill Hub</h2>
         <Space>
           <Input placeholder="搜索 Skill..." prefix={<SearchOutlined />} value={search} onChange={e => setSearch(e.target.value)} style={{ width: 240, borderRadius: 8 }} allowClear />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} style={{ background: '#1a1a2e', borderRadius: 8 }}>创建 Skill</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingSkill(null); form.resetFields(); setCreateOpen(true); }} style={{ background: '#1a1a2e', borderRadius: 8 }}>创建 Skill</Button>
         </Space>
       </div>
 
@@ -91,7 +105,7 @@ const SkillsPage: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>Skill ID: {skill.id}</Text>
                 <Space>
-                  <Button type="link" size="small" icon={<EditOutlined />}>编辑</Button>
+                  <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(skill)}>编辑</Button>
                   <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(skill.id)}>删除</Button>
                 </Space>
               </div>
@@ -100,7 +114,7 @@ const SkillsPage: React.FC = () => {
         })}
       </div>
 
-      <Modal title="创建 Skill" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={handleCreate} width={520} okText="创建" okButtonProps={{ style: { background: '#1a1a2e' } }}>
+      <Modal title={editingSkill ? '编辑 Skill' : '创建 Skill'} open={createOpen} onCancel={() => { setCreateOpen(false); setEditingSkill(null); }} onOk={handleCreate} width={520} okText={editingSkill ? '保存' : '创建'} okButtonProps={{ style: { background: '#1a1a2e' } }}>
         <Form form={form} layout="vertical" initialValues={{ type: 'tool', isPublic: true }}>
           <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入 Skill 名称' }]}>
             <Input placeholder="如：教务查询" />
