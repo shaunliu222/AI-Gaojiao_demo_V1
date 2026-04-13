@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Input, Button, Avatar, Select, Typography, Space, Tag, Tooltip, Badge } from 'antd';
 import { PlusOutlined, SearchOutlined, SendOutlined, PaperClipOutlined, LinkOutlined, StopOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
-import { aiChatApi } from '@/services/request';
-import { mockAgents, mockStreamResponse } from '@/mocks/data';
+import { aiChatApi, agentApi } from '@/services/request';
+import { mockStreamResponse } from '@/mocks/data';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -25,10 +25,8 @@ interface ChatSession {
   lastMessage?: string;
 }
 
-// Agent list (still from mock for now — agent API is Phase 4)
-const openclawAgents = mockAgents.filter((a: any) => a.agentType === 'openclaw');
-const publicAgents = openclawAgents.filter((a: any) => a.isPublic && a.status === 'published');
-const myAgents = openclawAgents.filter((a: any) => !a.isPublic || a.owner === 'teacher');
+// Agent list loaded from API
+const defaultAgent = { name: 'Main Agent', avatar: '🤖', description: '与 AI 互动，探索无限创意' };
 
 const ChatPage: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -40,7 +38,13 @@ const ChatPage: React.FC = () => {
   const [selectedAgentId, setSelectedAgentId] = useState('main');
   const [gatewayStatus, setGatewayStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [useBackendProxy, setUseBackendProxy] = useState(true);
+  const [agentList, setAgentList] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load agents from API
+  useEffect(() => {
+    agentApi.publicList().then((res: any) => setAgentList(res.data || [])).catch(() => {});
+  }, []);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(scrollToBottom, [messages]);
@@ -89,8 +93,7 @@ const ChatPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const selectedAgent: any = openclawAgents.find((a: any) => a.name === selectedAgentId) ||
-    { name: 'Main Agent', avatar: '🤖', description: '与 AI 互动，探索无限创意' };
+  const selectedAgent: any = agentList.find((a: any) => a.name === selectedAgentId) || defaultAgent;
 
   const handleSessionClick = (sid: string | number) => {
     setActiveSession(sid);
@@ -252,10 +255,10 @@ const ChatPage: React.FC = () => {
             options={[
               { label: <span style={{ fontWeight: 600, fontSize: 12, color: '#999' }}>--- 公共 Agent ---</span>, options:
                 [{ label: '🤖 Main Agent (默认)', value: 'main' },
-                ...publicAgents.map((a: any) => ({ label: `${a.avatar} ${a.name}`, value: a.name }))],
+                ...agentList.map((a: any) => ({ label: `${a.avatar || '🤖'} ${a.name}`, value: a.name }))],
               },
               { label: <span style={{ fontWeight: 600, fontSize: 12, color: '#999' }}>--- 我的 Agent ---</span>, options:
-                myAgents.map((a: any) => ({ label: `${a.avatar} ${a.name}`, value: a.name })),
+                [],
               },
             ]}
           />

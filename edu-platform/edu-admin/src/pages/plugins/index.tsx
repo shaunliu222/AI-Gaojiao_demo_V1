@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, Tag, Input, Button, Space, Tabs, Modal, Form, Select, message, Collapse, Typography, Badge } from 'antd';
 import { PlusOutlined, SearchOutlined, ReloadOutlined, DeleteOutlined, ApiOutlined, LinkOutlined } from '@ant-design/icons';
-import { mockMcpServers } from '@/mocks/data';
+import { mcpApi } from '@/services/request';
 
 const { Text } = Typography;
 
@@ -12,7 +12,11 @@ const mockTools = [
 ];
 
 const PluginsPage: React.FC = () => {
-  const [plugins, setPlugins] = useState(mockMcpServers);
+  const [plugins, setPlugins] = useState<any[]>([]);
+
+  useEffect(() => {
+    mcpApi.list().then((res: any) => setPlugins(res.data || [])).catch(() => {});
+  }, []);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all');
   const [addOpen, setAddOpen] = useState(false);

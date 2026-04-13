@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Tag, Button, Space, Modal, Form, Input, Select, Tabs, Typography, Badge, Divider, message, Table } from 'antd';
 import { PlusOutlined, SettingOutlined, LinkOutlined, PoweroffOutlined, SendOutlined, CodeOutlined } from '@ant-design/icons';
-import { mockChannels, mockAgents } from '@/mocks/data';
+import { channelApi, agentApi } from '@/services/request';
 
 const { Text, Paragraph } = Typography;
 
@@ -20,7 +20,13 @@ const agentTypeRouteInfo: Record<string, { method: string; desc: string }> = {
 };
 
 const ChannelsPage: React.FC = () => {
-  const [channels, setChannels] = useState(mockChannels);
+  const [channels, setChannels] = useState<any[]>([]);
+  const [agents, setAgents] = useState<any[]>([]);
+
+  useEffect(() => {
+    channelApi.list().then((res: any) => setChannels(res.data || [])).catch(() => {});
+    agentApi.publicList().then((res: any) => setAgents(res.data || [])).catch(() => {});
+  }, []);
   const [tab, setTab] = useState('all');
   const [addOpen, setAddOpen] = useState(false);
   const [bindOpen, setBindOpen] = useState(false);
@@ -137,7 +143,7 @@ const ChannelsPage: React.FC = () => {
       <Modal title={`绑定智能体到 "${selectedChannel?.name || ''}"`} open={bindOpen} onCancel={() => setBindOpen(false)} onOk={handleBind} okText="绑定">
         <Form form={bindForm} layout="vertical">
           <Form.Item name="agentName" label="选择智能体" rules={[{ required: true }]}>
-            <Select options={mockAgents.filter(a => a.status === 'published').map(a => ({
+            <Select options={agents.map((a: any) => ({
               label: <span>{a.avatar} {a.name} <Tag>{a.agentType === 'openclaw' ? 'OpenClaw' : a.agentType === 'lowcode' ? '低代码' : 'API'}</Tag></span>,
               value: a.name,
             }))} />

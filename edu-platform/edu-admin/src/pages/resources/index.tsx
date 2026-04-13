@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Tag, Input, Button, Tabs, Space, Upload, Progress, Modal, Select, Radio, message } from 'antd';
 import { UploadOutlined, SearchOutlined, InboxOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
-import { mockResources } from '@/mocks/data';
+import { resourceApi } from '@/services/request';
 
 const { Dragger } = Upload;
 
@@ -28,11 +28,21 @@ const ResourcesPage: React.FC = () => {
     { title: '操作', width: 120, render: () => <Space><Button type="link" size="small" icon={<EyeOutlined />}>预览</Button><Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button></Space> },
   ];
 
-  const filtered = mockResources.filter(r => {
-    const matchSearch = !search || r.name.includes(search);
-    const matchTab = tab === 'all' || r.categoryName === { materials: '教材课件', exams: '试题试卷', media: '视频音频', papers: '论文文献' }[tab];
-    return matchSearch && matchTab;
-  });
+  const [resources, setResources] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+
+  const fetchResources = useCallback(async () => {
+    try {
+      const res: any = await resourceApi.list({ page, size: 20, keyword: search || undefined, fileType: tab === 'all' ? undefined : tab });
+      setResources(res.data?.list || []);
+      setTotal(res.data?.total || 0);
+    } catch { /* ignore */ }
+  }, [page, search, tab]);
+
+  useEffect(() => { fetchResources(); }, [fetchResources]);
+
+  const filtered = resources;
 
   return (
     <div>

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Tag, Input, Button, Space, Tabs, Avatar, Typography, Modal, Form, Select, message } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import { mockSkills, mockAgents } from '@/mocks/data';
+import { skillApi } from '@/services/request';
 
 const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -13,7 +13,11 @@ const typeMap: Record<string, { color: string; label: string }> = {
 };
 
 const SkillsPage: React.FC = () => {
-  const [skills, setSkills] = useState(mockSkills);
+  const [skills, setSkills] = useState<any[]>([]);
+
+  useEffect(() => {
+    skillApi.list().then((res: any) => setSkills(res.data || [])).catch(() => {});
+  }, []);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [ownerFilter, setOwnerFilter] = useState('all');

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Tag, Input, Button, Space, Avatar, Typography, Modal, Steps, Form, Select, Tabs, Radio, Switch, Divider, Tooltip, message } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, SendOutlined, InfoCircleOutlined, SettingOutlined, CrownOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { mockAgents, mockModels, mockSkills, mockMcpServers } from '@/mocks/data';
+import { agentApi, modelApi, skillApi, mcpApi } from '@/services/request';
 import { useNavigate } from 'react-router-dom';
 
 const { Text, Paragraph } = Typography;
@@ -14,7 +14,7 @@ const thinkingLevels = [
   { label: '自适应（推荐）', value: 'adaptive' },
 ];
 
-const enabledModels = mockModels.filter(m => m.status === 'active');
+const enabledModels: any[] = []; // loaded dynamically
 
 // Main Agent default config (corresponds to OpenClaw agents.list default:true)
 const mainAgentConfig = {
@@ -43,7 +43,17 @@ const agentTypeTag: Record<string, { color: string; label: string }> = {
 };
 
 const AgentMinePage: React.FC = () => {
-  const [agents, setAgents] = useState(mockAgents);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [models, setModels] = useState<any[]>([]);
+  const [skills, setSkills] = useState<any[]>([]);
+  const [mcpServers, setMcpServers] = useState<any[]>([]);
+
+  useEffect(() => {
+    agentApi.list({ page: 1, size: 100 }).then((res: any) => setAgents(res.data?.list || [])).catch(() => {});
+    modelApi.list().then((res: any) => setModels(res.data || [])).catch(() => {});
+    skillApi.list().then((res: any) => setSkills(res.data || [])).catch(() => {});
+    mcpApi.list().then((res: any) => setMcpServers(res.data || [])).catch(() => {});
+  }, []);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [createOpen, setCreateOpen] = useState(false);
@@ -233,10 +243,10 @@ const AgentMinePage: React.FC = () => {
           {/* OpenClaw: Step 3 - Tools & Capabilities */}
           {step === 3 && agentType === 'openclaw' && (<>
             <Form.Item name="skills" label="Skills（从 Skill Hub 选择）">
-              <Select mode="multiple" placeholder="选择 Skills" options={mockSkills.map(s => ({ label: `⚡ ${s.name} — ${s.description}`, value: s.name }))} />
+              <Select mode="multiple" placeholder="选择 Skills" options={skills.map(s => ({ label: `⚡ ${s.name} — ${s.description}`, value: s.name }))} />
             </Form.Item>
             <Form.Item name="mcpServers" label="MCP Server（从插件中心选择）">
-              <Select mode="multiple" placeholder="选择 MCP Server" options={mockMcpServers.filter(m => m.status === 'active').map(m => ({ label: `🔌 ${m.name} (${m.transportType})`, value: m.name }))} />
+              <Select mode="multiple" placeholder="选择 MCP Server" options={mcpServers.filter(m => m.status === 'active').map(m => ({ label: `🔌 ${m.name} (${m.transportType})`, value: m.name }))} />
             </Form.Item>
             <Form.Item name="memorySearch" label="记忆搜索" valuePropName="checked" initialValue={true}>
               <Switch checkedChildren="启用" unCheckedChildren="关闭" />
@@ -349,10 +359,10 @@ const AgentMinePage: React.FC = () => {
           </Form.Item>
           <Divider orientation="left" style={{ fontSize: 13 }}>工具与能力</Divider>
           <Form.Item name="skills" label="Skills">
-            <Select mode="multiple" options={mockSkills.map(s => ({ label: `⚡ ${s.name}`, value: s.name }))} />
+            <Select mode="multiple" options={skills.map(s => ({ label: `⚡ ${s.name}`, value: s.name }))} />
           </Form.Item>
           <Form.Item name="mcpServers" label="MCP Server">
-            <Select mode="multiple" options={mockMcpServers.filter(m => m.status === 'active').map(m => ({ label: `🔌 ${m.name}`, value: m.name }))} />
+            <Select mode="multiple" options={mcpServers.filter(m => m.status === 'active').map(m => ({ label: `🔌 ${m.name}`, value: m.name }))} />
           </Form.Item>
           <Form.Item name="memorySearch" label="记忆搜索" valuePropName="checked" initialValue={true}>
             <Switch checkedChildren="启用" unCheckedChildren="关闭" />

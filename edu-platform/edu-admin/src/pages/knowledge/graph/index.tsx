@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Tag, Button, Space, Input, Select, Drawer, Typography, List, Steps, Upload, message, Tabs } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, UploadOutlined, ApartmentOutlined, InboxOutlined } from '@ant-design/icons';
-import { mockKnowledgeGraphNodes, mockKnowledgeGraphEdges } from '@/mocks/data';
+import { knowledgeApi } from '@/services/request';
 
 const { Text, Paragraph } = Typography;
 const { Dragger } = Upload;
@@ -18,13 +18,28 @@ const KnowledgeGraphPage: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
   const [graphTab, setGraphTab] = useState('public');
-  const [search, setSearch] = useState('');
+  const [graphs, setGraphs] = useState<any[]>([]);
+  const [nodes, setNodes] = useState<any[]>([]);
+  const [edges, setEdges] = useState<any[]>([]);
+  const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
 
-  const graphs = [
-    { id: 1, name: '数字媒体技术专业图谱', isPublic: true, nodeCount: 72, edgeCount: 95, status: 'active' },
-    { id: 2, name: '计算机科学基础图谱', isPublic: true, nodeCount: 156, edgeCount: 203, status: 'active' },
-    { id: 3, name: '我的高数笔记图谱', isPublic: false, nodeCount: 23, edgeCount: 18, status: 'building' },
-  ];
+  useEffect(() => {
+    knowledgeApi.listGraphs().then((res: any) => {
+      const list = res.data || [];
+      setGraphs(list);
+      if (list.length > 0) setSelectedGraphId(list[0].id);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (selectedGraphId) {
+      knowledgeApi.graphData(selectedGraphId).then((res: any) => {
+        setNodes(res.data?.nodes || []);
+        setEdges(res.data?.edges || []);
+      }).catch(() => {});
+    }
+  }, [selectedGraphId]);
+  const [search, setSearch] = useState('');
 
   const handleNodeClick = (node: any) => {
     setSelectedNode(node);
@@ -76,7 +91,7 @@ const KnowledgeGraphPage: React.FC = () => {
 
         {/* Graph canvas placeholder with CSS nodes */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#fafbfc' }}>
-          {mockKnowledgeGraphNodes.map(node => (
+          {nodes.map(node => (
             <div key={node.id} onClick={() => handleNodeClick(node)} style={{
               position: 'absolute', left: node.x, top: node.y,
               width: 80, height: 80, borderRadius: '50%',
@@ -93,9 +108,9 @@ const KnowledgeGraphPage: React.FC = () => {
           ))}
           {/* SVG edges */}
           <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-            {mockKnowledgeGraphEdges.map((edge, i) => {
-              const s = mockKnowledgeGraphNodes.find(n => n.id === edge.source);
-              const t = mockKnowledgeGraphNodes.find(n => n.id === edge.target);
+            {edges.map((edge, i) => {
+              const s = nodes.find(n => n.id === edge.sourceNodeId);
+              const t = nodes.find(n => n.id === edge.targetNodeId);
               if (!s || !t) return null;
               return <line key={i} x1={s.x + 40} y1={s.y + 40} x2={t.x + 40} y2={t.y + 40} stroke="#d9d9d9" strokeWidth={1.5} />;
             })}

@@ -1,12 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Col, Row, Statistic, Table, Tag, List, Avatar, Typography } from 'antd';
 import { UserOutlined, RobotOutlined, MessageOutlined, DatabaseOutlined, ApartmentOutlined, ArrowUpOutlined } from '@ant-design/icons';
-import { mockUsageStats, mockAgents, mockAuditLogs } from '@/mocks/data';
+import { agentApi, securityApi, userApi } from '@/services/request';
 
 const { Text } = Typography;
 
 const DashboardPage: React.FC = () => {
-  const topAgents = [...mockAgents].sort((a, b) => b.useCount - a.useCount).slice(0, 5);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [userCount, setUserCount] = useState(0);
+
+  useEffect(() => {
+    agentApi.publicList().then((res: any) => setAgents(res.data || [])).catch(() => {});
+    securityApi.auditLogs({ page: 1, size: 5 }).then((res: any) => setAuditLogs(res.data?.list || [])).catch(() => {});
+    userApi.list({ page: 1, size: 1 }).then((res: any) => setUserCount(res.data?.total || 0)).catch(() => {});
+  }, []);
+
+  const topAgents = [...agents].sort((a: any, b: any) => (b.useCount || 0) - (a.useCount || 0)).slice(0, 5);
   const recentActivity = [
     { title: 'Zhang Teacher 上传了《机器学习导论 PPT》', time: '10 分钟前', avatar: '📄' },
     { title: 'Li Student 与 智能助教 对话 12 轮', time: '25 分钟前', avatar: '💬' },
@@ -36,7 +46,7 @@ const DashboardPage: React.FC = () => {
           <Card hoverable><Statistic title="图谱节点" value={1847} prefix={<ApartmentOutlined />} valueStyle={{ color: '#eb2f96' }} /></Card>
         </Col>
         <Col xs={24} sm={12} md={8} lg={4}>
-          <Card hoverable><Statistic title="API调用量" value={mockUsageStats.totalCalls} prefix={<MessageOutlined />} /></Card>
+          <Card hoverable><Statistic title="API调用量" value={0} prefix={<MessageOutlined />} /></Card>
         </Col>
       </Row>
 
@@ -70,7 +80,7 @@ const DashboardPage: React.FC = () => {
         <Col xs={24} lg={12}>
           <Card title="模型调用分布" size="small">
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              {mockUsageStats.modelDistribution.map((m) => (
+              {[].map((m: any) => (
                 <div key={m.name} style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 24, fontWeight: 600, color: '#1a1a2e' }}>{m.value}%</div>
                   <div style={{ fontSize: 12, color: '#999' }}>{m.name}</div>
@@ -81,7 +91,7 @@ const DashboardPage: React.FC = () => {
         </Col>
         <Col xs={24} lg={12}>
           <Card title="安全拦截记录" size="small">
-            <Table dataSource={mockAuditLogs} rowKey="id" pagination={false} size="small" columns={[
+            <Table dataSource={auditLogs.slice(0, 5)} rowKey="id" pagination={false} size="small" columns={[
               { title: '用户', dataIndex: 'username' },
               { title: '命中规则', dataIndex: 'hitRule', render: (t: string) => <Tag color="red">{t}</Tag> },
               { title: '处理', dataIndex: 'action', render: (t: string) => <Tag color={t === 'blocked' ? 'red' : 'orange'}>{t}</Tag> },
