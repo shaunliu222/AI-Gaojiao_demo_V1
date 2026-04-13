@@ -35,6 +35,7 @@ public class AiChatController {
     private final AiChatSessionService sessionService;
     private final ModelUsageService modelUsageService;
     private final UserMappingService userMappingService;
+    private final OpenClawCliService openClawCliService;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(
             Runtime.getRuntime().availableProcessors() * 2);
@@ -65,6 +66,9 @@ public class AiChatController {
 
         // 4. Record usage (async)
         modelUsageService.recordUsage(userId, null, null, 0, 0, BigDecimal.ZERO);
+
+        // 5. Async: also send via OpenClaw CLI for session persistence + channel delivery
+        openClawCliService.sendAgentMessage(userMessage, agentId, true);
 
         return R.ok(response);
     }
