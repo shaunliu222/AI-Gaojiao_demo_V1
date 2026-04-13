@@ -62,20 +62,26 @@ const AgentMinePage: React.FC = () => {
   const [mainForm] = Form.useForm();
   const navigate = useNavigate();
 
-  const filtered = agents.filter(a => {
-    const matchSearch = !search || a.name.includes(search);
+  // Separate Main Agent from other agents (Main Agent = name contains 'Main Agent' or has default config)
+  const mainAgent = agents.find(a => a.name === 'Main Agent');
+  const otherAgents = agents.filter(a => a.name !== 'Main Agent');
+
+  const filtered = otherAgents.filter(a => {
+    const matchSearch = !search || a.name?.includes(search);
     const matchStatus = statusFilter === 'all' || a.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
   const handleCreate = () => {
-    form.validateFields().then(values => {
-      const newAgent = { id: Date.now(), ...values, agentType, status: 'draft', isPublic: false, useCount: 0, avatar: '🤖', owner: 'current' };
-      setAgents([newAgent, ...agents]);
-      setCreateOpen(false);
-      setStep(0);
-      form.resetFields();
-      message.success('智能体创建成功');
+    form.validateFields().then(async (values) => {
+      try {
+        await agentApi.create({ ...values, agentType, status: values.status || 'draft', isPublic: values.isPublic ?? false });
+        message.success('智能体创建成功');
+        setCreateOpen(false);
+        setStep(0);
+        form.resetFields();
+        agentApi.list({ page: 1, size: 100 }).then((res: any) => setAgents(res.data?.list || []));
+      } catch (err: any) { message.error(err.response?.data?.message || '创建失败'); }
     });
   };
 
@@ -105,36 +111,32 @@ const AgentMinePage: React.FC = () => {
         { key: 'joined', label: '从广场加入' },
       ]} style={{ marginBottom: 16 }} />
 
-      {/* Main Agent - Default, pinned to top, not deletable */}
-      {(statusFilter === 'all' || statusFilter === 'published') && (
+      {/* Main Agent - Default, pinned to top */}
+      {(statusFilter === 'all' || statusFilter === 'published') && mainAgent && (
         <Card style={{ borderRadius: 12, marginBottom: 16, border: '2px solid #faad14', background: 'linear-gradient(135deg, #fffbe6 0%, #fff 100%)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Avatar size={56} style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', fontSize: 28, flexShrink: 0 }}>🤖</Avatar>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <Text style={{ fontSize: 18, fontWeight: 700 }}>Main Agent</Text>
+                <Text style={{ fontSize: 18, fontWeight: 700 }}>{mainAgent.name}</Text>
                 <Tag color="gold" icon={<CrownOutlined />}>默认</Tag>
                 <Tag color="blue">OpenClaw</Tag>
-                <Tag color="green">已发布</Tag>
+                <Tag color="green">{mainAgent.status}</Tag>
               </div>
               <Paragraph type="secondary" style={{ margin: 0, fontSize: 13 }}>
-                {mainAgentConfig.description}
+                {mainAgent.description}
               </Paragraph>
               <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12 }}>
-                <span>主模型: <Tag>{mainAgentConfig.primaryModel}</Tag></span>
-                <span>备选: {mainAgentConfig.fallbackModels.map(m => <Tag key={m}>{m}</Tag>)}</span>
-                <span>Skills: {mainAgentConfig.skills.map(s => <Tag key={s} color="blue">{s}</Tag>)}</span>
-                <span>MCP: {mainAgentConfig.mcpServers.map(m => <Tag key={m} color="purple">{m}</Tag>)}</span>
+                {mainAgent.config?.primaryModel && <span>主模型: <Tag>{mainAgent.config.primaryModel}</Tag></span>}
+                {mainAgent.config?.skills?.length > 0 && <span>Skills: {mainAgent.config.skills.map((s: string) => <Tag key={s} color="blue">{s}</Tag>)}</span>}
+                {mainAgent.config?.subagents?.allowAgents && <Tag color="purple">子Agent: 已启用</Tag>}
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
               <Button icon={<SettingOutlined />} onClick={() => {
                 mainForm.setFieldsValue({
-                  primaryModel: `zhipu/${mainAgentConfig.primaryModel.toLowerCase().replace(/-/g, '-')}`,
-                  fallbackModels: [],
-                  skills: mainAgentConfig.skills,
-                  mcpServers: mainAgentConfig.mcpServers,
-                  thinkingDefault: mainAgentConfig.thinkingDefault,
+                  primaryModel: mainAgent.config?.primaryModel,
+                  subagentsEnabled: mainAgent.config?.subagents?.allowAgents ?? false,
                 });
                 setMainConfigOpen(true);
               }}>配置</Button>
@@ -148,24 +150,30 @@ const AgentMinePage: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
         {filtered.map(agent => (
           <Card key={agent.id} hoverable style={{ borderRadius: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <Avatar size={48} style={{ background: '#f5f5f5', fontSize: 24 }}>{agent.avatar}</Avatar>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <Avatar size={48} style={{ background: '#f5f5f5', fontSize: 24 }}>{agent.avatar || '🤖'}</Avatar>
               <div style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: 600 }}>{agent.name}</Text>
-                <div>
+                <Text style={{ fontSize: 16, fontWeight: 600 }}>{agent.name || '未命名'}</Text>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
                   <Tag color={agent.isPublic ? 'blue' : 'red'}>{agent.isPublic ? '公共' : '私有'}</Tag>
                   <Tag color={agent.status === 'published' ? 'green' : agent.status === 'draft' ? 'default' : 'red'}>{agent.status}</Tag>
                   <Tag>{agent.agentType === 'openclaw' ? 'OpenClaw' : agent.agentType === 'lowcode' ? '低代码' : 'API'}</Tag>
                 </div>
               </div>
             </div>
-            <Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ minHeight: 44 }}>{agent.description}</Paragraph>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>{agent.useCount} 使用</Text>
+            <Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ minHeight: 44, marginBottom: 8 }}>{agent.description || '暂无描述'}</Paragraph>
+            {agent.config?.primaryModel && <div style={{ fontSize: 12, marginBottom: 4 }}>主模型: <Tag>{agent.config.primaryModel}</Tag></div>}
+            {agent.category && <div style={{ fontSize: 12, marginBottom: 8 }}>分类: <Tag>{agent.category}</Tag></div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>{agent.useCount || 0} 使用</Text>
               <Space>
                 <Button type="link" size="small" icon={<EditOutlined />}>编辑</Button>
-                <Button type="link" size="small" icon={<SendOutlined />}>发布</Button>
-                <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+                <Button type="link" size="small" icon={<SendOutlined />} onClick={async () => {
+                  try { await agentApi.publish(agent.id, { channelType: 'web' }); await agentApi.update(agent.id, { status: 'published' }); message.success('已发布'); agentApi.list({ page: 1, size: 100 }).then((res: any) => setAgents(res.data?.list || [])); } catch { message.error('发布失败'); }
+                }}>发布</Button>
+                <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={async () => {
+                  Modal.confirm({ title: '确认删除', onOk: async () => { try { await agentApi.delete(agent.id); message.success('已删除'); setAgents(agents.filter(a => a.id !== agent.id)); } catch { message.error('删除失败'); } } });
+                }}>删除</Button>
               </Space>
             </div>
           </Card>
