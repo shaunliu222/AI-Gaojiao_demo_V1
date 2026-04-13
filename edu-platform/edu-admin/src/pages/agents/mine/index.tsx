@@ -14,8 +14,6 @@ const thinkingLevels = [
   { label: '自适应（推荐）', value: 'adaptive' },
 ];
 
-const enabledModels: any[] = []; // loaded dynamically
-
 // Main Agent default config (corresponds to OpenClaw agents.list default:true)
 const mainAgentConfig = {
   id: 'main',
@@ -217,13 +215,13 @@ const AgentMinePage: React.FC = () => {
               以下模型列表来自"模型管理"中已启用的模型。如需添加新模型，请先前往 <a href="/models">模型管理</a> 页面配置。
             </div>
             <Form.Item name="primaryModel" label="主模型" rules={[{ required: true, message: '请选择主模型' }]}>
-              <Select placeholder="选择主模型" options={enabledModels.map(m => ({
+              <Select placeholder="选择主模型" options={models.map(m => ({
                 label: <span>{m.alias} <Tag style={{ marginLeft: 8 }}>{m.provider}</Tag></span>,
                 value: `${m.provider}/${m.modelName}`,
               }))} />
             </Form.Item>
             <Form.Item name="fallbackModels" label={<>备选模型 <Tooltip title="主模型不可用时自动切换。对应 AgentModelConfig.fallbacks"><InfoCircleOutlined /></Tooltip></>}>
-              <Select mode="multiple" placeholder="选择备选模型（可选）" options={enabledModels.map(m => ({
+              <Select mode="multiple" placeholder="选择备选模型（可选）" options={models.map(m => ({
                 label: `${m.alias} (${m.provider})`,
                 value: `${m.provider}/${m.modelName}`,
               }))} />
@@ -344,13 +342,13 @@ const AgentMinePage: React.FC = () => {
         </div>
         <Form form={mainForm} layout="vertical">
           <Form.Item name="primaryModel" label="主模型（从模型管理已配置列表选择）" rules={[{ required: true }]}>
-            <Select options={enabledModels.map(m => ({
+            <Select options={models.map(m => ({
               label: <span>{m.alias} <Tag style={{ marginLeft: 8 }}>{m.provider}</Tag></span>,
               value: `${m.provider}/${m.modelName}`,
             }))} />
           </Form.Item>
           <Form.Item name="fallbackModels" label="备选模型">
-            <Select mode="multiple" placeholder="选择备选模型（可选）" options={enabledModels.map(m => ({
+            <Select mode="multiple" placeholder="选择备选模型（可选）" options={models.map(m => ({
               label: `${m.alias} (${m.provider})`, value: `${m.provider}/${m.modelName}`,
             }))} />
           </Form.Item>
