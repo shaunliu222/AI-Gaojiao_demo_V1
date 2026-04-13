@@ -194,12 +194,34 @@ const AgentMinePage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text type="secondary" style={{ fontSize: 12 }}>{agent.useCount || 0} 使用</Text>
               <Space>
-                <Button type="link" size="small" icon={<EditOutlined />}>编辑</Button>
-                <Button type="link" size="small" icon={<SendOutlined />} onClick={async () => {
-                  try { await agentApi.publish(agent.id, { channelType: 'web' }); await agentApi.update(agent.id, { status: 'published' }); message.success('已发布'); agentApi.list({ page: 1, size: 100 }).then((res: any) => setAgents(res.data?.list || [])); } catch { message.error('发布失败'); }
+                <Button type="link" size="small" icon={<EditOutlined />} onClick={(e) => {
+                  e.stopPropagation();
+                  message.info('编辑功能：请删除后重新创建（完整编辑表单开发中）');
+                }}>编辑</Button>
+                <Button type="link" size="small" icon={<SendOutlined />} onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await agentApi.publish(agent.id, { channelType: 'web' });
+                    await agentApi.update(agent.id, { status: 'published', isPublic: true });
+                    message.success('已发布');
+                    const res: any = await agentApi.list({ page: 1, size: 100 });
+                    setAgents(res.data?.list || []);
+                  } catch { message.error('发布失败'); }
                 }}>发布</Button>
-                <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={async () => {
-                  Modal.confirm({ title: '确认删除', onOk: async () => { try { await agentApi.delete(agent.id); message.success('已删除'); setAgents(agents.filter(a => a.id !== agent.id)); } catch { message.error('删除失败'); } } });
+                <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={(e) => {
+                  e.stopPropagation();
+                  Modal.confirm({
+                    title: '确认删除',
+                    content: `确定要删除「${agent.name}」吗？`,
+                    onOk: async () => {
+                      try {
+                        await agentApi.delete(agent.id);
+                        message.success('已删除');
+                        const res: any = await agentApi.list({ page: 1, size: 100 });
+                        setAgents(res.data?.list || []);
+                      } catch { message.error('删除失败'); }
+                    },
+                  });
                 }}>删除</Button>
               </Space>
             </div>
