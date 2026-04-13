@@ -21,14 +21,17 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class OpenClawCliService {
 
+    private static final String FEISHU_ACCOUNT = "architect";
+    private static final String FEISHU_TARGET = "ou_f90bbdfc2ddb90e0afd98845d8be3610";
+
     /**
-     * Send a message to an Agent via OpenClaw CLI.
-     * This enters the full Session → Transcript → Channel delivery pipeline.
-     * The reply will be delivered to configured channels (e.g., Feishu).
+     * Send a message to an Agent via OpenClaw CLI AND sync to Feishu.
+     * Two-step: 1) agent processes the message 2) message send to Feishu
      */
     @Async
     public void sendAgentMessage(String message, String agentId, boolean deliverToChannel) {
         try {
+            // Step 1: Run agent to get AI response (enters Session Transcript)
             List<String> cmd = new ArrayList<>();
             cmd.add("openclaw");
             cmd.add("agent");
@@ -36,14 +39,9 @@ public class OpenClawCliService {
             cmd.add(agentId != null ? agentId : "main");
             cmd.add("--message");
             cmd.add(message);
-            if (deliverToChannel) {
-                cmd.add("--deliver");
-                cmd.add("--channel");
-                cmd.add("feishu");
-            }
 
-            log.info("Sending agent message via CLI: agent={}, deliver={}, msg={}...",
-                    agentId, deliverToChannel, message.substring(0, Math.min(50, message.length())));
+            log.info("Sending agent message via CLI: agent={}, msg={}...",
+                    agentId, message.substring(0, Math.min(50, message.length())));
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
@@ -53,18 +51,29 @@ public class OpenClawCliService {
             Process process = pb.start();
             boolean finished = process.waitFor(120, TimeUnit.SECONDS);
 
+            String agentReply = "";
             if (finished) {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 StringBuilder output = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
+                    // Filter out config warnings
+                    if (!line.contains("Config warnings") && !line.contains("Config was last written") && !line.isEmpty()) {
+                        output.append(line).append("\n");
+                    }
                 }
+                agentReply = output.toString().trim();
                 log.info("CLI agent response (exit={}): {}...", process.exitValue(),
-                        output.substring(0, Math.min(200, output.length())));
+                        agentReply.substring(0, Math.min(200, agentReply.length())));
             } else {
                 process.destroyForcibly();
                 log.warn("CLI agent command timed out after 120s");
+            }
+
+            // Step 2: Forward to Feishu via message send
+            if (deliverToChannel && !agentReply.isEmpty()) {
+                String feishuMsg = "💬 [Web用户] " + message + "\n\n🤖 [AI回复] " + agentReply;
+                sendToFeishu(feishuMsg, FEISHU_TARGET);
             }
         } catch (Exception e) {
             log.error("Failed to send agent message via CLI", e);
@@ -72,24 +81,31 @@ public class OpenClawCliService {
     }
 
     /**
-     * Send a direct message to a Feishu channel.
+     * Send a direct message to Feishu via OpenClaw CLI.
      */
     @Async
-    public void sendToFeishu(String message, String chatId) {
+    public void sendToFeishu(String message, String target) {
         try {
-            ProcessBuilder pb = new ProcessBuilder(
+            List<String> cmd = List.of(
                     "openclaw", "message", "send",
                     "--channel", "feishu",
-                    "--to", chatId,
-                    "--text", message
+                    "--account", FEISHU_ACCOUNT,
+                    "--target", target != null ? target : FEISHU_TARGET,
+                    "-m", message
             );
+
+            ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             pb.environment().put("PATH", System.getenv("PATH") + ":/usr/local/bin:/Users/" +
                     System.getProperty("user.name") + "/.npm-global/bin");
 
             Process process = pb.start();
-            process.waitFor(30, TimeUnit.SECONDS);
-            log.info("Feishu message sent (exit={})", process.exitValue());
+            boolean finished = process.waitFor(30, TimeUnit.SECONDS);
+            if (finished) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                String output = reader.lines().filter(l -> l.contains("Sent") || l.contains("error")).findFirst().orElse("");
+                log.info("Feishu send (exit={}): {}", process.exitValue(), output);
+            }
         } catch (Exception e) {
             log.error("Failed to send Feishu message", e);
         }
