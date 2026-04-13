@@ -126,3 +126,26 @@ VALUES ('教务查询', '查询课表、成绩、选课信息', 'query', 1, true
 MERGE INTO skill_definition (name, description, skill_type, owner_id, is_public, status, deleted)
 KEY(name)
 VALUES ('知识库检索', '从向量知识库检索相关内容', 'query', 1, true, 1, 0);
+
+-- Sample knowledge graph
+MERGE INTO kg_graph (name, description, owner_id, is_public, node_count, edge_count, status, deleted)
+KEY(name) VALUES ('计算机科学基础', '计算机科学核心知识图谱', 1, true, 5, 4, 'active', 0);
+
+-- Sample knowledge graph nodes
+INSERT INTO kg_node (graph_id, name, node_type, description) VALUES
+(1, '数据结构', 'chapter', '数据结构与算法基础'),
+(1, '排序算法', 'section', '常见排序算法'),
+(1, '快速排序', 'concept', '分治思想的排序算法，平均时间复杂度O(nlogn)'),
+(1, '二叉树', 'section', '树形数据结构'),
+(1, '图论基础', 'section', '图的表示与遍历');
+
+-- Sample knowledge graph edges
+INSERT INTO kg_edge (graph_id, source_node_id, target_node_id, edge_type) VALUES
+(1, 1, 2, 'CONTAINS'),
+(1, 2, 3, 'CONTAINS'),
+(1, 1, 4, 'CONTAINS'),
+(1, 4, 5, 'PREREQUISITE');
+
+-- Sample competency graph
+MERGE INTO comp_graph (name, description, owner_id, is_public, status, deleted)
+KEY(name) VALUES ('软件工程师能力图谱', '软件工程师岗位能力模型', 1, true, 'active', 0);

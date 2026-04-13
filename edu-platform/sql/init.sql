@@ -235,6 +235,33 @@ CREATE TABLE IF NOT EXISTS kg_attachment (
     created_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS kg_node (
+    id              BIGSERIAL PRIMARY KEY,
+    graph_id        BIGINT  NOT NULL REFERENCES kg_graph(id),
+    name            VARCHAR(512) NOT NULL,
+    node_type       VARCHAR(64)  NOT NULL DEFAULT 'concept',  -- chapter/section/concept/formula/method/job/competency/course
+    description     TEXT,
+    parent_id       BIGINT,
+    properties      JSONB,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS kg_edge (
+    id              BIGSERIAL PRIMARY KEY,
+    graph_id        BIGINT  NOT NULL REFERENCES kg_graph(id),
+    source_node_id  BIGINT  NOT NULL REFERENCES kg_node(id),
+    target_node_id  BIGINT  NOT NULL REFERENCES kg_node(id),
+    edge_type       VARCHAR(64) NOT NULL DEFAULT 'RELATES_TO',  -- CONTAINS/PREREQUISITE/RELATES_TO/APPLIES_TO/REQUIRES/MAPS_TO
+    properties      JSONB,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kg_node_graph ON kg_node(graph_id);
+CREATE INDEX IF NOT EXISTS idx_kg_edge_graph ON kg_edge(graph_id);
+CREATE INDEX IF NOT EXISTS idx_kg_edge_source ON kg_edge(source_node_id);
+CREATE INDEX IF NOT EXISTS idx_kg_edge_target ON kg_edge(target_node_id);
+
 -- ========================
 -- 5. Competency Graph Metadata
 -- ========================
