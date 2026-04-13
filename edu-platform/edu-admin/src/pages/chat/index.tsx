@@ -149,6 +149,49 @@ const ChatPage: React.FC = () => {
           }
         );
         return;
+      } catch { /* fall through to direct gateway */ }
+    }
+
+    // Try direct OpenClaw Gateway (when backend proxy unavailable but gateway is reachable)
+    if (gatewayStatus === 'connected') {
+      try {
+        const res = await fetch('/gateway/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-openclaw-agent-id': selectedAgentId === 'main' ? '' : selectedAgentId,
+          },
+          body: JSON.stringify({
+            model: selectedAgentId === 'main' ? 'openclaw' : `openclaw/${selectedAgentId}`,
+            messages: allMessages,
+            stream: true,
+          }),
+          signal: AbortSignal.timeout(60000),
+        });
+
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let content = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(l => l.startsWith('data: ') || l.startsWith('data:'));
+            for (const line of lines) {
+              const data = line.replace(/^data:\s?/, '');
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content || '';
+                content += delta;
+                setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content } : m));
+              } catch { /* skip malformed chunks */ }
+            }
+          }
+          setIsStreaming(false);
+          return;
+        }
       } catch { /* fall through to mock */ }
     }
 
