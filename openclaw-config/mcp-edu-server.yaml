@@ -1,0 +1,39 @@
+# OpenClaw 教育平台 MCP Server 配置
+#
+# 将此文件内容合并到 OpenClaw 的配置中（~/.openclaw/config 或环境变量）
+# 详见 OpenClaw 文档：https://docs.openclaw.com/mcp
+#
+# 启动方式:
+#   cd edu-platform/edu-mcp-server && npm install && npm run dev
+#
+# OpenClaw 配置方式（在 OpenClaw Control UI 或 CLI 中）:
+#   openclaw mcp add edu-knowledge --command "node /path/to/edu-mcp-server/dist/index.js"
+#
+# 或通过环境变量:
+#   OPENCLAW_MCP_SERVERS='{"edu-knowledge":{"command":"node","args":["/path/to/edu-mcp-server/dist/index.js"]}}'
+
+mcp_servers:
+  edu-knowledge:
+    description: "教育知识库 MCP Server — 知识图谱检索、教务查询、资源搜索"
+    transport: stdio
+    command: node
+    args:
+      - ../edu-platform/edu-mcp-server/dist/index.js
+    env:
+      EDU_API_URL: "http://localhost:8080"
+
+# Agent 配置中引用 MCP Server:
+# agents:
+#   list:
+#     - name: main
+#       default: true
+#       mcpServers:
+#         - edu-knowledge
+#       skills: []
+#       model:
+#         primary: zhipu/glm-4-plus
+
+# 工具说明:
+#   search_knowledge  — 知识图谱检索问答
+#   query_academic    — 教务信息查询（课表/成绩/选课）
+#   search_resources  — 教学资源搜索

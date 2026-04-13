@@ -37,13 +37,20 @@ public class OpenClawClient {
      * Synchronous chat completion (non-streaming).
      */
     public String chatCompletion(ChatRequest request) {
+        return chatCompletion(request, null);
+    }
+
+    public String chatCompletion(ChatRequest request, String sessionKey) {
         Map<String, Object> body = buildRequestBody(request, false);
 
-        return webClient.post()
+        var req = webClient.post()
                 .uri("/v1/chat/completions")
                 .header("x-openclaw-agent-id", request.getAgentId() != null ? request.getAgentId() : "")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
+                .contentType(MediaType.APPLICATION_JSON);
+        if (sessionKey != null && !sessionKey.isEmpty()) {
+            req = req.header("x-openclaw-session-key", sessionKey);
+        }
+        return req.bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)
                 .block(Duration.ofSeconds(120));
@@ -54,13 +61,20 @@ public class OpenClawClient {
      * Returns a Flux of SSE data strings.
      */
     public Flux<String> chatCompletionStream(ChatRequest request) {
+        return chatCompletionStream(request, null);
+    }
+
+    public Flux<String> chatCompletionStream(ChatRequest request, String sessionKey) {
         Map<String, Object> body = buildRequestBody(request, true);
 
-        return webClient.post()
+        var req = webClient.post()
                 .uri("/v1/chat/completions")
                 .header("x-openclaw-agent-id", request.getAgentId() != null ? request.getAgentId() : "")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
+                .contentType(MediaType.APPLICATION_JSON);
+        if (sessionKey != null && !sessionKey.isEmpty()) {
+            req = req.header("x-openclaw-session-key", sessionKey);
+        }
+        return req.bodyValue(body)
                 .retrieve()
                 .bodyToFlux(String.class);
     }

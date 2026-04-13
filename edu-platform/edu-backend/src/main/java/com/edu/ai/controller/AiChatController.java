@@ -34,6 +34,7 @@ public class AiChatController {
     private final SysUserService sysUserService;
     private final AiChatSessionService sessionService;
     private final ModelUsageService modelUsageService;
+    private final UserMappingService userMappingService;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(
             Runtime.getRuntime().availableProcessors() * 2);
@@ -54,8 +55,10 @@ public class AiChatController {
             return R.fail(403, "Your message was blocked by security policy");
         }
 
-        // 2. Forward to OpenClaw
-        String response = openClawClient.chatCompletion(request);
+        // 2. Forward to OpenClaw with sessionKey for conversation persistence
+        String agentId = request.getAgentId() != null ? request.getAgentId() : "main";
+        String sessionKey = "agent:" + agentId + ":user:" + userId;
+        String response = openClawClient.chatCompletion(request, sessionKey);
 
         // 3. Output safety check
         securityCheckService.checkOutput(response, userId, null);
@@ -92,11 +95,13 @@ public class AiChatController {
             return emitter;
         }
 
-        // 2. Stream from OpenClaw
+        // 2. Stream from OpenClaw with sessionKey
+        String streamAgentId = request.getAgentId() != null ? request.getAgentId() : "main";
+        String streamSessionKey = "agent:" + streamAgentId + ":user:" + userId;
         executor.execute(() -> {
             StringBuilder fullResponse = new StringBuilder();
             try {
-                openClawClient.chatCompletionStream(request)
+                openClawClient.chatCompletionStream(request, streamSessionKey)
                         .doOnNext(data -> {
                             try {
                                 fullResponse.append(data);
@@ -192,6 +197,28 @@ public class AiChatController {
     @GetMapping("/gateway/health")
     public R<Boolean> gatewayHealth() {
         return R.ok(openClawClient.healthCheck());
+    }
+
+    // --- Channel User Mapping ---
+
+    @Operation(summary = "Bind channel user to platform user")
+    @PostMapping("/channel-bind")
+    public R<Void> bindChannelUser(@RequestParam String channelType, @RequestParam String channelUserId) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        userMappingService.bindUser(channelType, channelUserId, userId);
+        return R.ok();
+    }
+
+    @Operation(summary = "Get session key for channel user")
+    @GetMapping("/channel-session")
+    public R<Map<String, String>> channelSession(@RequestParam String channelType,
+                                                  @RequestParam String channelUserId,
+                                                  @RequestParam(defaultValue = "main") String agentId) {
+        String sessionKey = userMappingService.getSessionKey(channelType, channelUserId, agentId);
+        if (sessionKey == null) {
+            return R.fail(404, "User not bound. Please bind your channel account first.");
+        }
+        return R.ok(Map.of("sessionKey", sessionKey));
     }
 
     private String getLastUserMessage(List<ChatMessage> messages) {

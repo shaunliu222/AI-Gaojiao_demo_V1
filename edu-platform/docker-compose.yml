@@ -93,6 +93,15 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  edu-mcp-server:
+    build: ./edu-mcp-server
+    container_name: edu-mcp-server
+    environment:
+      EDU_API_URL: http://edu-backend:8080
+    depends_on:
+      - edu-backend
+    restart: unless-stopped
+
   edu-admin:
     build: ./edu-admin
     container_name: edu-admin

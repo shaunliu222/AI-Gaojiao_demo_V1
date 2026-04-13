@@ -419,6 +419,19 @@ CREATE TABLE IF NOT EXISTS ai_chat_session (
 );
 
 -- ========================
+-- 9. User Channel Mapping
+-- ========================
+
+CREATE TABLE IF NOT EXISTS user_channel_mapping (
+    id              BIGSERIAL PRIMARY KEY,
+    channel_type    VARCHAR(64)  NOT NULL,
+    channel_user_id VARCHAR(256) NOT NULL,
+    platform_user_id BIGINT      NOT NULL REFERENCES sys_user(id),
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    UNIQUE(channel_type, channel_user_id)
+);
+
+-- ========================
 -- Initial Data
 -- ========================
 
