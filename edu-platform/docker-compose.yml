@@ -1,4 +1,8 @@
 services:
+  # ========================
+  # Infrastructure
+  # ========================
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: edu-postgres
@@ -43,11 +47,6 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   neo4j:
     image: neo4j:5-community
@@ -60,11 +59,48 @@ services:
       - "7687:7687"
     volumes:
       - neo4j_data:/data
-    healthcheck:
-      test: ["CMD", "neo4j", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
+  # ========================
+  # Application
+  # ========================
+
+  edu-backend:
+    build: ./edu-backend
+    container_name: edu-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-edu_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: edu-resources
+      OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-http://host.docker.internal:18789}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      CRYPTO_SECRET_KEY: ${CRYPTO_SECRET_KEY}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  edu-admin:
+    build: ./edu-admin
+    container_name: edu-admin
+    ports:
+      - "80:80"
+    depends_on:
+      - edu-backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:
