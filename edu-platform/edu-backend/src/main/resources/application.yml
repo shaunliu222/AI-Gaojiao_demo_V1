@@ -53,6 +53,10 @@ minio:
   secret-key: ${MINIO_SECRET_KEY:}
   bucket: ${MINIO_BUCKET:edu-resources}
 
+# Encryption
+crypto:
+  secret-key: ${CRYPTO_SECRET_KEY:}
+
 # Knife4j
 springdoc:
   swagger-ui:

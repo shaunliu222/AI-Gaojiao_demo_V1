@@ -30,8 +30,7 @@ public class CryptoUtil {
         if (envKey != null && !envKey.isEmpty()) {
             return envKey;
         }
-        // Fallback for dev profile — NOT safe for production
-        return "edu-ai-dev-profile-secret-key01";
+        throw new IllegalStateException("CRYPTO_SECRET_KEY not configured. Set it via environment variable or .env file.");
     }
 
     public static String encrypt(String plainText) {

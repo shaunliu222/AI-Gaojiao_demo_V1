@@ -11,6 +11,7 @@ edu-platform/.env
 edu-platform/edu-backend/target/
 edu-platform/edu-admin/dist/
 edu-platform/edu-admin/node_modules/
+edu-platform/edu-mcp-server/node_modules/
 
 # OpenClaw build
 openclaw/node_modules/
