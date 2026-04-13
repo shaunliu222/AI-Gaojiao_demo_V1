@@ -32,14 +32,14 @@ public class OpenClawCliService {
             List<String> cmd = new ArrayList<>();
             cmd.add("openclaw");
             cmd.add("agent");
+            cmd.add("--agent");
+            cmd.add(agentId != null ? agentId : "main");
             cmd.add("--message");
             cmd.add(message);
-            if (agentId != null && !agentId.equals("main")) {
-                cmd.add("--agent");
-                cmd.add(agentId);
-            }
             if (deliverToChannel) {
                 cmd.add("--deliver");
+                cmd.add("--channel");
+                cmd.add("feishu");
             }
 
             log.info("Sending agent message via CLI: agent={}, deliver={}, msg={}...",
