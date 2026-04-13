@@ -35,18 +35,42 @@ const SkillsPage: React.FC = () => {
 
   const handleEdit = (skill: any) => {
     setEditingSkill(skill);
-    form.setFieldsValue({ name: skill.name, description: skill.description, type: skill.skillType, isPublic: skill.isPublic });
+    const cfg = skill.config || {};
+    form.setFieldsValue({
+      name: skill.name, description: skill.description, type: skill.skillType, isPublic: skill.isPublic,
+      triggerCondition: cfg.triggerCondition, executionType: cfg.executionType || 'api',
+      method: cfg.method, endpoint: cfg.endpoint, headers: cfg.headers,
+      parameters: cfg.parameters, mcpTool: cfg.mcpTool, codeSnippet: cfg.codeSnippet, outputFormat: cfg.outputFormat,
+    });
     setCreateOpen(true);
   };
 
   const handleCreate = () => {
     form.validateFields().then(async (values) => {
       try {
+        const config = {
+          triggerCondition: values.triggerCondition,
+          executionType: values.executionType,
+          method: values.method,
+          endpoint: values.endpoint,
+          headers: values.headers,
+          parameters: values.parameters,
+          mcpTool: values.mcpTool,
+          codeSnippet: values.codeSnippet,
+          outputFormat: values.outputFormat,
+        };
+        const payload = {
+          name: values.name,
+          description: values.description,
+          skillType: values.type,
+          isPublic: values.isPublic ?? true,
+          config,
+        };
         if (editingSkill) {
-          await skillApi.update(editingSkill.id, { ...values, skillType: values.type });
+          await skillApi.update(editingSkill.id, payload);
           message.success('更新成功');
         } else {
-          await skillApi.create({ ...values, skillType: values.type, isPublic: values.isPublic ?? true });
+          await skillApi.create(payload);
           message.success('Skill 创建成功');
         }
         setCreateOpen(false);
@@ -114,29 +138,85 @@ const SkillsPage: React.FC = () => {
         })}
       </div>
 
-      <Modal title={editingSkill ? '编辑 Skill' : '创建 Skill'} open={createOpen} onCancel={() => { setCreateOpen(false); setEditingSkill(null); }} onOk={handleCreate} width={520} okText={editingSkill ? '保存' : '创建'} okButtonProps={{ style: { background: '#1a1a2e' } }}>
-        <Form form={form} layout="vertical" initialValues={{ type: 'tool', isPublic: true }}>
-          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入 Skill 名称' }]}>
-            <Input placeholder="如：教务查询" />
+      <Modal title={editingSkill ? '编辑 Skill' : '创建 Skill'} open={createOpen} onCancel={() => { setCreateOpen(false); setEditingSkill(null); }} onOk={handleCreate} width={600} okText={editingSkill ? '保存' : '创建'} okButtonProps={{ style: { background: '#1a1a2e' } }}>
+        <Form form={form} layout="vertical" initialValues={{ type: 'tool', isPublic: true, executionType: 'api', method: 'GET' }}>
+          <div style={{ background: '#f6f8fa', padding: '12px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13, color: '#666' }}>
+            Skill 是 Agent 可调用的能力单元。定义 Skill 后，可在创建智能体时选择赋予 Agent。
+          </div>
+
+          <Form.Item name="name" label="Skill 名称" rules={[{ required: true, message: '请输入 Skill 名称' }]}>
+            <Input placeholder="如：教务查询、知识库检索、代码执行" />
           </Form.Item>
-          <Form.Item name="description" label="描述" rules={[{ required: true }]}>
-            <TextArea rows={3} placeholder="描述该 Skill 的功能和用途" />
+
+          <Form.Item name="description" label="功能描述" rules={[{ required: true, message: '请描述 Skill 功能' }]} extra="清晰的描述帮助 Agent 判断何时调用该 Skill">
+            <TextArea rows={2} placeholder="用一句话描述该 Skill 能做什么。如：查询学生的课表、成绩和选课信息" />
           </Form.Item>
-          <Form.Item name="type" label="类型">
+
+          <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
+            <Form.Item name="type" label="Skill 类型" style={{ flex: 1 }}>
+              <Select options={[
+                { label: '🔧 工具 — 执行操作', value: 'tool' },
+                { label: '🔍 查询 — 检索信息', value: 'query' },
+                { label: '✨ 生成 — 创建内容', value: 'generate' },
+              ]} />
+            </Form.Item>
+            <Form.Item name="isPublic" label="可见性" style={{ flex: 1 }}>
+              <Select options={[{ label: '🌐 公共 — 全校可用', value: true }, { label: '🔒 私有 — 仅自己可用', value: false }]} />
+            </Form.Item>
+          </Space>
+
+          <div style={{ background: '#f0f5ff', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12, color: '#1a1a2e', fontWeight: 500 }}>
+            触发与执行配置
+          </div>
+
+          <Form.Item name="triggerCondition" label="触发条件" extra="Agent 在什么场景下应调用此 Skill">
+            <Input placeholder="如：当用户询问课表、成绩、选课相关问题时" />
+          </Form.Item>
+
+          <Form.Item name="executionType" label="执行方式">
             <Select options={[
-              { label: '工具 — 执行操作（如查询数据库、调用API）', value: 'tool' },
-              { label: '查询 — 检索信息（如知识库搜索、文献检索）', value: 'query' },
-              { label: '生成 — 创建内容（如生成报告、出题）', value: 'generate' },
+              { label: 'REST API — 调用外部 HTTP 接口', value: 'api' },
+              { label: 'MCP 工具 — 调用 MCP Server 注册的工具', value: 'mcp' },
+              { label: '内置函数 — 使用平台内置能力', value: 'builtin' },
+              { label: '自定义代码 — Python/JavaScript 脚本', value: 'code' },
             ]} />
           </Form.Item>
-          <Form.Item name="triggerCondition" label="触发条件（可选）">
-            <Input placeholder="如：当用户询问课表相关问题时触发" />
+
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.executionType !== cur.executionType}>
+            {({ getFieldValue }) => {
+              const execType = getFieldValue('executionType');
+              if (execType === 'api') return (<>
+                <Space style={{ width: '100%' }}>
+                  <Form.Item name="method" label="请求方法" style={{ width: 120 }}>
+                    <Select options={[{ label: 'GET', value: 'GET' }, { label: 'POST', value: 'POST' }, { label: 'PUT', value: 'PUT' }]} />
+                  </Form.Item>
+                  <Form.Item name="endpoint" label="API 端点" style={{ flex: 1 }}>
+                    <Input placeholder="https://api.example.com/query" />
+                  </Form.Item>
+                </Space>
+                <Form.Item name="headers" label="请求头（可选）">
+                  <Input placeholder='如：Authorization: Bearer xxx' />
+                </Form.Item>
+                <Form.Item name="parameters" label="参数说明" extra="Agent 调用时需要传递的参数">
+                  <TextArea rows={2} placeholder='如：student_id (学号，必填), semester (学期，可选)' />
+                </Form.Item>
+              </>);
+              if (execType === 'mcp') return (
+                <Form.Item name="mcpTool" label="MCP 工具名称">
+                  <Input placeholder="如：query_schedule, query_grade" />
+                </Form.Item>
+              );
+              if (execType === 'code') return (
+                <Form.Item name="codeSnippet" label="执行代码">
+                  <TextArea rows={4} placeholder="# Python 代码..." style={{ fontFamily: 'monospace', fontSize: 12 }} />
+                </Form.Item>
+              );
+              return null;
+            }}
           </Form.Item>
-          <Form.Item name="config" label="执行配置（JSON）">
-            <TextArea rows={4} placeholder='{"endpoint": "http://...", "method": "GET"}' style={{ fontFamily: 'monospace' }} />
-          </Form.Item>
-          <Form.Item name="isPublic" label="权限">
-            <Select options={[{ label: '公共 — 全校可用', value: true }, { label: '私有 — 仅自己可用', value: false }]} />
+
+          <Form.Item name="outputFormat" label="输出格式（可选）" extra="Skill 返回结果的格式描述，帮助 Agent 解析结果">
+            <Input placeholder='如：JSON，包含 courses 数组，每项有 name, time, room 字段' />
           </Form.Item>
         </Form>
       </Modal>
