@@ -26,24 +26,31 @@ const SkillsPage: React.FC = () => {
 
   const filtered = skills.filter(s => {
     const matchSearch = !search || s.name.includes(search) || s.description.includes(search);
-    const matchType = typeFilter === 'all' || s.type === typeFilter;
+    const matchType = typeFilter === 'all' || s.skillType === typeFilter;
     const matchOwner = ownerFilter === 'all' || (ownerFilter === 'public' ? s.isPublic : !s.isPublic);
     return matchSearch && matchType && matchOwner;
   });
 
-  const getRefAgentCount = (skillId: number) => mockAgents.filter(() => Math.random() > 0.5).length;
-
   const handleCreate = () => {
-    form.validateFields().then(values => {
-      setSkills([{ id: Date.now(), ...values, status: 1, isPublic: values.isPublic ?? true }, ...skills]);
-      setCreateOpen(false);
-      form.resetFields();
-      message.success('Skill 创建成功');
+    form.validateFields().then(async (values) => {
+      try {
+        await skillApi.create({ ...values, skillType: values.type, isPublic: values.isPublic ?? true });
+        message.success('Skill 创建成功');
+        setCreateOpen(false);
+        form.resetFields();
+        skillApi.list().then((res: any) => setSkills(res.data || []));
+      } catch { message.error('创建失败'); }
     });
   };
 
   const handleDelete = (id: number) => {
-    Modal.confirm({ title: '确认删除', content: '删除后引用该 Skill 的 Agent 将无法调用', onOk: () => setSkills(skills.filter(s => s.id !== id)) });
+    Modal.confirm({ title: '确认删除', content: '删除后引用该 Skill 的 Agent 将无法调用', onOk: async () => {
+      try {
+        await skillApi.delete(id);
+        message.success('删除成功');
+        setSkills(skills.filter(s => s.id !== id));
+      } catch { message.error('删除失败'); }
+    } });
   };
 
   return (
@@ -68,22 +75,21 @@ const SkillsPage: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
         {filtered.map(skill => {
-          const refCount = getRefAgentCount(skill.id);
           return (
             <Card key={skill.id} hoverable style={{ borderRadius: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <Avatar size={40} style={{ background: typeMap[skill.type]?.color || '#1a1a2e', flexShrink: 0 }} icon={<ThunderboltOutlined />} />
+                <Avatar size={40} style={{ background: typeMap[skill.skillType]?.color || '#1a1a2e', flexShrink: 0 }} icon={<ThunderboltOutlined />} />
                 <div style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: 600 }}>{skill.name}</Text>
                   <div>
-                    <Tag color={typeMap[skill.type]?.color}>{typeMap[skill.type]?.label}</Tag>
+                    <Tag color={typeMap[skill.skillType]?.color}>{typeMap[skill.skillType]?.label || skill.skillType}</Tag>
                     <Tag color={skill.isPublic ? 'blue' : 'red'}>{skill.isPublic ? '公共' : '私有'}</Tag>
                   </div>
                 </div>
               </div>
               <Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ minHeight: 44 }}>{skill.description}</Paragraph>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>已被 {refCount} 个智能体引用</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>Skill ID: {skill.id}</Text>
                 <Space>
                   <Button type="link" size="small" icon={<EditOutlined />}>编辑</Button>
                   <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(skill.id)}>删除</Button>
