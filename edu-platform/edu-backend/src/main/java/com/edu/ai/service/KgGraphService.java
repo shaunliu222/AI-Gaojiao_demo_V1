@@ -79,7 +79,7 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
         updateCounts(edge.getGraphId());
     }
 
-    // --- Step 1: Skeleton (batch insert) ---
+    // --- Step 1: Skeleton (batch insert OR LLM-assisted) ---
 
     @Transactional
     public void createSkeleton(Long graphId, List<KgNode> nodes, List<KgEdge> edges) {
@@ -92,6 +92,26 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
             edgeMapper.insert(edge);
         }
         updateCounts(graphId);
+    }
+
+    /**
+     * Step 1 LLM-assisted: Extract skeleton framework from document text.
+     * Returns suggested nodes/edges for user review before creating.
+     */
+    public String extractSkeleton(String documentText) {
+        String text = documentText.length() > 2000 ? documentText.substring(0, 2000) : documentText;
+        String prompt = "你是教育知识图谱专家。请从以下文本中提取知识骨架结构（章→节→知识点），返回JSON。\n\n" +
+                "返回格式：{\"nodes\":[{\"name\":\"...\",\"type\":\"chapter/section/concept\",\"description\":\"...\"}]," +
+                "\"edges\":[{\"source\":\"节点名\",\"target\":\"节点名\",\"type\":\"CONTAINS/PREREQUISITE/RELATES_TO\"}]}\n\n" +
+                "文本：\n" + text;
+        try {
+            ChatRequest req = new ChatRequest();
+            req.setMessages(List.of(createMessage("user", prompt)));
+            return openClawClient.chatCompletion(req);
+        } catch (Exception e) {
+            log.error("Skeleton extraction failed", e);
+            return "{\"error\":\"" + e.getMessage() + "\"}";
+        }
     }
 
     // --- Step 2: LLM Entity Extraction ---
@@ -116,7 +136,7 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
         createSkeleton(graphId, nodes, edges);
     }
 
-    // --- Step 4: Attach knowledge ---
+    // --- Step 4: Attach knowledge (manual + LLM auto) ---
 
     @Transactional
     public KgAttachment attachKnowledge(Long graphId, Long nodeId, String contentSnippet, Long fileId) {
@@ -127,6 +147,68 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
         att.setFileId(fileId);
         attachmentMapper.insert(att);
         return att;
+    }
+
+    /**
+     * Step 4 LLM auto-attach: Upload new document → LLM slices into chunks
+     * based on existing graph nodes → auto-attach each chunk to best matching node.
+     */
+    public Map<String, Object> autoAttach(Long graphId, String documentText) {
+        // Get existing nodes for context
+        List<KgNode> nodes = getNodes(graphId);
+        if (nodes.isEmpty()) {
+            return Map.of("error", "图谱中没有节点，请先创建骨架或抽取实体");
+        }
+
+        String nodeList = nodes.stream()
+                .map(n -> n.getId() + ": " + n.getName() + " (" + n.getNodeType() + ")")
+                .collect(Collectors.joining("\n"));
+
+        String text = documentText.length() > 3000 ? documentText.substring(0, 3000) : documentText;
+        String prompt = "你是知识切片专家。将以下文本切分为知识片段，并匹配到最相关的图谱节点。\n\n" +
+                "图谱节点列表：\n" + nodeList + "\n\n" +
+                "请将文本切片并返回JSON：{\"chunks\":[{\"nodeId\":节点ID数字,\"content\":\"知识片段内容\"}]}\n" +
+                "每个片段50-200字，匹配到最相关的节点ID。直接返回JSON，不要代码块包裹。\n\n" +
+                "文本：\n" + text;
+
+        try {
+            ChatRequest req = new ChatRequest();
+            req.setMessages(List.of(createMessage("user", prompt)));
+            String response = openClawClient.chatCompletion(req);
+
+            // Parse response
+            String content = response;
+            if (response.contains("\"choices\"")) {
+                var parsed = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response);
+                content = parsed.path("choices").path(0).path("message").path("content").asText(response);
+            }
+            // Remove code block wrapper
+            var jsonMatch = java.util.regex.Pattern.compile("```json\\s*([\\s\\S]*?)```").matcher(content);
+            String jsonStr = jsonMatch.find() ? jsonMatch.group(1) : content;
+
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var tree = mapper.readTree(jsonStr);
+            var chunks = tree.path("chunks");
+
+            int attached = 0;
+            List<Map<String, Object>> results = new ArrayList<>();
+            for (var chunk : chunks) {
+                long nodeId = chunk.path("nodeId").asLong(0);
+                String chunkContent = chunk.path("content").asText("");
+                if (nodeId > 0 && !chunkContent.isEmpty()) {
+                    attachKnowledge(graphId, nodeId, chunkContent, null);
+                    attached++;
+                    KgNode node = nodes.stream().filter(n -> n.getId() == nodeId).findFirst().orElse(null);
+                    results.add(Map.of("nodeId", nodeId, "nodeName", node != null ? node.getName() : "unknown",
+                            "snippet", chunkContent.substring(0, Math.min(50, chunkContent.length())) + "..."));
+                }
+            }
+
+            return Map.of("attached", attached, "details", results);
+        } catch (Exception e) {
+            log.error("Auto-attach failed", e);
+            return Map.of("error", e.getMessage());
+        }
     }
 
     public List<KgAttachment> getAttachments(Long graphId, Long nodeId) {

@@ -169,6 +169,22 @@ public class KgGraphController {
         return R.ok(kgService.queryKnowledge(graphId, request.getQuestion()));
     }
 
+    // --- Step 1 LLM: Extract skeleton ---
+
+    @Operation(summary = "LLM-assisted skeleton extraction from text")
+    @PostMapping("/{graphId}/extract-skeleton")
+    public R<String> extractSkeleton(@PathVariable Long graphId, @RequestBody BuildRequest request) {
+        return R.ok(kgService.extractSkeleton(request.getText()));
+    }
+
+    // --- Step 4 LLM: Auto-attach knowledge chunks ---
+
+    @Operation(summary = "Auto-attach: LLM slices text into chunks and matches to graph nodes")
+    @PostMapping("/{graphId}/auto-attach")
+    public R<Map<String, Object>> autoAttach(@PathVariable Long graphId, @RequestBody BuildRequest request) {
+        return R.ok(kgService.autoAttach(graphId, request.getText()));
+    }
+
     // --- Request DTOs ---
 
     @Data

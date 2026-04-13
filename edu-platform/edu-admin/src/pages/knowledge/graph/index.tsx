@@ -299,33 +299,38 @@ const KnowledgeGraphPage: React.FC = () => {
       </Drawer>
 
       {/* Five-step build drawer */}
-      <Drawer title="五步构建图谱" open={buildOpen} onClose={() => setBuildOpen(false)} width={560}>
+      <Drawer title="五步构建图谱" open={buildOpen} onClose={() => setBuildOpen(false)} width={600}>
         <Steps current={buildStep} size="small" style={{ marginBottom: 24 }} items={[
-          { title: '输入内容' },
-          { title: 'LLM 抽取' },
-          { title: '审核确认' },
-          { title: '完成' },
+          { title: '① 骨架' },
+          { title: '② 抽取' },
+          { title: '③ 审核' },
+          { title: '④ 挂载' },
+          { title: '⑤ 完成' },
         ]} />
 
+        {/* Step 0: 骨架定义 — 手动 OR LLM辅助 */}
         {buildStep === 0 && (<>
-          <Paragraph type="secondary">粘贴教材/文档文本内容，LLM 将自动抽取知识实体和关系。（无需 MinerU，直接使用 LLM 解析）</Paragraph>
-          <TextArea rows={12} value={buildText} onChange={e => setBuildText(e.target.value)}
-            placeholder="粘贴教材内容...&#10;&#10;例如：&#10;第一章 数据结构基础&#10;1.1 线性表&#10;线性表是最基本的数据结构之一，包括顺序表和链表两种实现方式...&#10;1.2 栈和队列&#10;栈是一种后进先出（LIFO）的数据结构..." />
-          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-            <Dragger beforeUpload={(file) => {
-              const reader = new FileReader();
-              reader.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('文件内容已加载'); };
-              reader.readAsText(file);
-              return false;
-            }} showUploadList={false} style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: 13 }}><InboxOutlined /> 或拖拽 .txt/.md 文件</p>
-            </Dragger>
+          <div style={{ background: '#f6f8fa', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+            <b>Step 1: 创建图谱骨架</b> — 定义知识结构（章→节→知识点），或上传资料让 LLM 辅助提取框架。
           </div>
-          <Button type="primary" block style={{ marginTop: 16, background: '#1a1a2e' }} loading={buildLoading} onClick={handleStartBuild}>
-            提交 LLM 抽取
-          </Button>
+          <Tabs items={[
+            { key: 'llm', label: 'LLM 辅助提取', children: (<>
+              <TextArea rows={8} value={buildText} onChange={e => setBuildText(e.target.value)}
+                placeholder="粘贴教材目录或核心内容，LLM 自动提取知识骨架..." />
+              <Dragger beforeUpload={(file) => { const r = new FileReader(); r.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('已加载'); }; r.readAsText(file); return false; }} showUploadList={false} style={{ marginTop: 8 }}>
+                <p style={{ margin: 0, fontSize: 13 }}><InboxOutlined /> 拖拽 .txt/.md 文件</p>
+              </Dragger>
+              <Button type="primary" block style={{ marginTop: 12, background: '#1a1a2e' }} loading={buildLoading} onClick={handleStartBuild}>
+                LLM 提取骨架并抽取实体
+              </Button>
+            </>) },
+            { key: 'skip', label: '跳过（已有骨架）', children: (
+              <Button block onClick={() => setBuildStep(3)}>图谱已有节点，直接进入 Step 4 挂载知识</Button>
+            ) },
+          ]} />
         </>)}
 
+        {/* Step 1: LLM 抽取中 */}
         {buildStep === 1 && (
           <div style={{ textAlign: 'center', padding: 40 }}>
             <Spin size="large" />
@@ -334,9 +339,12 @@ const KnowledgeGraphPage: React.FC = () => {
           </div>
         )}
 
+        {/* Step 2: 审核确认 */}
         {buildStep === 2 && (<>
-          <Paragraph strong>LLM 抽取结果：</Paragraph>
-          <div style={{ background: '#f6f8fa', padding: 12, borderRadius: 8, maxHeight: 400, overflow: 'auto', fontSize: 13, whiteSpace: 'pre-wrap' }}>
+          <div style={{ background: '#f6f8fa', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+            <b>Step 3: 人工审核</b> — 查看 LLM 抽取结果，确认后添加到图谱。
+          </div>
+          <div style={{ background: '#fff', padding: 12, borderRadius: 8, maxHeight: 350, overflow: 'auto', fontSize: 13, whiteSpace: 'pre-wrap', border: '1px solid #e8e8e8' }}>
             {typeof buildResult === 'string' ? buildResult :
              buildResult?.raw_response ? String(buildResult.raw_response) :
              JSON.stringify(buildResult, null, 2)}
@@ -347,12 +355,44 @@ const KnowledgeGraphPage: React.FC = () => {
           </Space>
         </>)}
 
-        {buildStep === 3 && (
+        {/* Step 3: 持续挂载 — LLM 自动切片 */}
+        {buildStep === 3 && (<>
+          <div style={{ background: '#f0f5ff', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+            <b>Step 4: 持续挂载</b> — 上传新资料，LLM 根据图谱节点自动切片并关联到对应知识点。
+          </div>
+          <TextArea rows={8} value={buildText} onChange={e => setBuildText(e.target.value)}
+            placeholder="粘贴新的学习资料/教材内容...&#10;LLM 会自动将内容切分为知识片段，匹配到图谱中最相关的节点。" />
+          <Dragger beforeUpload={(file) => { const r = new FileReader(); r.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('已加载'); }; r.readAsText(file); return false; }} showUploadList={false} style={{ marginTop: 8 }}>
+            <p style={{ margin: 0, fontSize: 13 }}><InboxOutlined /> 拖拽 .txt/.md 文件</p>
+          </Dragger>
+          <Space style={{ marginTop: 12 }}>
+            <Button type="primary" style={{ background: '#1a1a2e' }} loading={buildLoading} onClick={async () => {
+              if (!buildText.trim()) { message.warning('请输入资料内容'); return; }
+              setBuildLoading(true);
+              try {
+                const res: any = await knowledgeApi.autoAttach(selectedGraphId!, buildText);
+                const data = res.data;
+                if (data?.error) { message.error(data.error); }
+                else { message.success(`已挂载 ${data?.attached || 0} 个知识片段到图谱节点`); }
+                setBuildStep(4);
+                loadGraphData();
+              } catch { message.error('自动挂载失败'); }
+              setBuildLoading(false);
+            }}>LLM 自动切片并挂载</Button>
+            <Button onClick={() => setBuildStep(4)}>跳过，直接完成</Button>
+          </Space>
+        </>)}
+
+        {/* Step 4: 完成 */}
+        {buildStep === 4 && (
           <div style={{ textAlign: 'center', padding: 40 }}>
             <div style={{ fontSize: 48 }}>✅</div>
             <Paragraph strong style={{ fontSize: 16, marginTop: 16 }}>构建完成</Paragraph>
-            <Paragraph type="secondary">图谱节点已更新，可用于检索问答</Paragraph>
-            <Button type="primary" onClick={() => { setBuildOpen(false); loadGraphData(); }} style={{ background: '#1a1a2e' }}>查看图谱</Button>
+            <Paragraph type="secondary">图谱节点已更新，知识片段已挂载。可用于检索问答。</Paragraph>
+            <Space>
+              <Button type="primary" onClick={() => { setBuildOpen(false); loadGraphData(); }} style={{ background: '#1a1a2e' }}>查看图谱</Button>
+              <Button onClick={() => { setBuildStep(3); setBuildText(''); }}>继续挂载更多资料</Button>
+            </Space>
           </div>
         )}
       </Drawer>
