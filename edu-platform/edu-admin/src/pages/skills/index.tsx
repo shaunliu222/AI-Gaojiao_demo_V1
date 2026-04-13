@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Tag, Input, Button, Space, Tabs, Avatar, Typography, Modal, Form, Select, message } from 'antd';
+import { Card, Tag, Input, Button, Space, Tabs, Avatar, Typography, Modal, Form, Select, Radio, message } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { skillApi } from '@/services/request';
 
@@ -161,9 +161,22 @@ const SkillsPage: React.FC = () => {
               ]} />
             </Form.Item>
             <Form.Item name="isPublic" label="可见性" style={{ flex: 1 }}>
-              <Select options={[{ label: '🌐 公共 — 全校可用', value: true }, { label: '🔒 私有 — 仅自己可用', value: false }]} />
+              <Radio.Group options={[{ label: '🔒 私有', value: false }, { label: '🌐 公共', value: true }]} />
             </Form.Item>
           </Space>
+
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.isPublic !== cur.isPublic}>
+            {({ getFieldValue }) => getFieldValue('isPublic') === true ? (
+              <Form.Item name="authorizedOrgs" label="授权学院（公共时可选择授权范围）">
+                <Select mode="multiple" placeholder="不选则全校可用" options={[
+                  { label: '全校', value: 'ALL' },
+                  { label: '计算机学院', value: 'CS' },
+                  { label: '信息工程学院', value: 'IE' },
+                  { label: '数学学院', value: 'MATH' },
+                ]} />
+              </Form.Item>
+            ) : null}
+          </Form.Item>
 
           <div style={{ background: '#f0f5ff', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12, color: '#1a1a2e', fontWeight: 500 }}>
             触发与执行配置

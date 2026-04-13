@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Input, Button, Space, Tabs, Modal, Form, Select, message, Collapse, Typography, Badge } from 'antd';
+import { Table, Tag, Input, Button, Space, Tabs, Modal, Form, Select, Radio, message, Collapse, Typography, Badge } from 'antd';
 import { PlusOutlined, SearchOutlined, ReloadOutlined, DeleteOutlined, ApiOutlined, LinkOutlined } from '@ant-design/icons';
 import { mcpApi } from '@/services/request';
 
@@ -118,8 +118,20 @@ const PluginsPage: React.FC = () => {
           <Form.Item name="authType" label="认证方式">
             <Select options={[{ label: '无认证', value: 'none' }, { label: 'Token', value: 'token' }, { label: 'Basic Auth', value: 'basic' }]} />
           </Form.Item>
-          <Form.Item name="isPublic" label="权限">
-            <Select options={[{ label: '公共', value: true }, { label: '私有', value: false }]} />
+          <Form.Item name="isPublic" label="可见性">
+            <Radio.Group options={[{ label: '🔒 私有', value: false }, { label: '🌐 公共', value: true }]} />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.isPublic !== cur.isPublic}>
+            {({ getFieldValue }) => getFieldValue('isPublic') === true ? (
+              <Form.Item name="authorizedOrgs" label="授权学院（公共时可选择授权范围）">
+                <Select mode="multiple" placeholder="不选则全校可用" options={[
+                  { label: '全校', value: 'ALL' },
+                  { label: '计算机学院', value: 'CS' },
+                  { label: '信息工程学院', value: 'IE' },
+                  { label: '数学学院', value: 'MATH' },
+                ]} />
+              </Form.Item>
+            ) : null}
           </Form.Item>
           <Button onClick={handleTestConnection} loading={testResult === 'testing'} icon={<LinkOutlined />}
             style={{ marginBottom: 16 }} type={testResult === 'success' ? 'default' : 'primary'}>
