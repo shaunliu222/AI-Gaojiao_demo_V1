@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Tag, Input, Button, Space, Avatar, Typography, Modal, Steps, Form, Select, Tabs, Radio, Switch, Divider, Tooltip, message } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, SendOutlined, InfoCircleOutlined, SettingOutlined, CrownOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { agentApi, modelApi, skillApi, mcpApi } from '@/services/request';
+import { agentApi, modelApi, skillApi, mcpApi, aiChatApi } from '@/services/request';
 import { useNavigate } from 'react-router-dom';
 
 const { Text, Paragraph } = Typography;
@@ -45,12 +45,14 @@ const AgentMinePage: React.FC = () => {
   const [models, setModels] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [mcpServers, setMcpServers] = useState<any[]>([]);
+  const [mainAgentInfo, setMainAgentInfo] = useState<{ name: string; source: string; intro: string } | null>(null);
 
   useEffect(() => {
     agentApi.list({ page: 1, size: 100 }).then((res: any) => setAgents(res.data?.list || [])).catch(() => {});
     modelApi.list().then((res: any) => setModels(res.data || [])).catch(() => {});
     skillApi.list().then((res: any) => setSkills(res.data || [])).catch(() => {});
     mcpApi.list().then((res: any) => setMcpServers(res.data || [])).catch(() => {});
+    aiChatApi.mainAgentInfo().then((res: any) => setMainAgentInfo(res.data)).catch(() => {});
   }, []);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -111,36 +113,30 @@ const AgentMinePage: React.FC = () => {
         { key: 'joined', label: '从广场加入' },
       ]} style={{ marginBottom: 16 }} />
 
-      {/* Main Agent - Default, pinned to top */}
-      {(statusFilter === 'all' || statusFilter === 'published') && mainAgent && (
+      {/* Main Agent = OpenClaw Gateway 默认 Agent, always pinned to top */}
+      {(statusFilter === 'all' || statusFilter === 'published') && (
         <Card style={{ borderRadius: 12, marginBottom: 16, border: '2px solid #faad14', background: 'linear-gradient(135deg, #fffbe6 0%, #fff 100%)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Avatar size={56} style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', fontSize: 28, flexShrink: 0 }}>🤖</Avatar>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <Text style={{ fontSize: 18, fontWeight: 700 }}>{mainAgent.name}</Text>
+                <Text style={{ fontSize: 18, fontWeight: 700 }}>Main Agent</Text>
                 <Tag color="gold" icon={<CrownOutlined />}>默认</Tag>
-                <Tag color="blue">OpenClaw</Tag>
-                <Tag color="green">{mainAgent.status}</Tag>
+                <Tag color="blue">OpenClaw Gateway</Tag>
+                <Tag color="green">运行中</Tag>
               </div>
               <Paragraph type="secondary" style={{ margin: 0, fontSize: 13 }}>
-                {mainAgent.description}
+                {mainAgentInfo?.intro || 'OpenClaw Gateway 默认智能体，正在加载身份信息...'}
               </Paragraph>
-              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12 }}>
-                {mainAgent.config?.primaryModel && <span>主模型: <Tag>{mainAgent.config.primaryModel}</Tag></span>}
-                {mainAgent.config?.skills?.length > 0 && <span>Skills: {mainAgent.config.skills.map((s: string) => <Tag key={s} color="blue">{s}</Tag>)}</span>}
-                {mainAgent.config?.subagents?.allowAgents && <Tag color="purple">子Agent: 已启用</Tag>}
+              <div style={{ marginTop: 6, fontSize: 12, color: '#999' }}>
+                来源: {mainAgentInfo?.source || 'OpenClaw Gateway'} · 对话页的 Main Agent 与此为同一个 Agent
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-              <Button icon={<SettingOutlined />} onClick={() => {
-                mainForm.setFieldsValue({
-                  primaryModel: mainAgent.config?.primaryModel,
-                  subagentsEnabled: mainAgent.config?.subagents?.allowAgents ?? false,
-                });
-                setMainConfigOpen(true);
-              }}>配置</Button>
-              <Button icon={<PlayCircleOutlined />} onClick={() => navigate('/chat')}>测试</Button>
+              <Button icon={<SettingOutlined />} onClick={() => window.open('http://localhost:18789', '_blank')}>
+                OpenClaw 配置
+              </Button>
+              <Button icon={<PlayCircleOutlined />} onClick={() => navigate('/chat')}>测试对话</Button>
             </div>
           </div>
         </Card>

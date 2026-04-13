@@ -205,6 +205,7 @@ export const aiChatApi = {
   sessions: () => request.get('/api/ai/sessions'),
   deleteSession: (id: number) => request.delete(`/api/ai/sessions/${id}`),
   gatewayHealth: () => request.get('/api/ai/gateway/health'),
+  mainAgentInfo: () => request.get('/api/ai/main-agent-info'),
   chatStream: async (
     data: { model?: string; messages: any[]; agentId?: string },
     onData: (chunk: string) => void,

@@ -17,6 +17,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -157,6 +158,31 @@ public class AiChatController {
         Long userId = StpUtil.getLoginIdAsLong();
         sessionService.deleteUserSession(userId, id);
         return R.ok();
+    }
+
+    /**
+     * Get OpenClaw Main Agent identity by asking it to self-describe.
+     */
+    @Operation(summary = "Get OpenClaw Main Agent info")
+    @GetMapping("/main-agent-info")
+    public R<Map<String, String>> mainAgentInfo() {
+        try {
+            ChatRequest req = new ChatRequest();
+            ChatMessage msg = new ChatMessage();
+            msg.setRole("user");
+            msg.setContent("用一句话介绍你自己的名字和角色定位，不超过50字，只输出介绍内容");
+            req.setMessages(List.of(msg));
+            String raw = openClawClient.chatCompletion(req);
+            // Parse the response to extract content
+            String intro = raw;
+            try {
+                var parsed = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw);
+                intro = parsed.path("choices").path(0).path("message").path("content").asText(raw);
+            } catch (Exception ignored) {}
+            return R.ok(Map.of("name", "Main Agent", "source", "OpenClaw Gateway", "intro", intro));
+        } catch (Exception e) {
+            return R.ok(Map.of("name", "Main Agent", "source", "OpenClaw Gateway", "intro", "OpenClaw 默认智能体（Gateway 未连接）"));
+        }
     }
 
     /**
