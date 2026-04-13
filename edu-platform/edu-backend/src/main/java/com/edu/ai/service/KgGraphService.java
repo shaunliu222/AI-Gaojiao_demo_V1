@@ -8,7 +8,6 @@ import com.edu.ai.entity.*;
 import com.edu.ai.mapper.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +24,7 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
     private final KgBuildTaskMapper buildTaskMapper;
     private final KgAttachmentMapper attachmentMapper;
     private final OpenClawClient openClawClient;
+    private final KgBuildAsyncService buildAsyncService;
 
     // --- Graph CRUD ---
 
@@ -105,39 +105,8 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
         task.setProgress(0);
         buildTaskMapper.insert(task);
 
-        extractAsync(task.getId(), graphId, documentText);
+        buildAsyncService.extractAsync(task.getId(), graphId, documentText);
         return task;
-    }
-
-    @Async
-    public void extractAsync(Long taskId, Long graphId, String documentText) {
-        try {
-            buildTaskMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KgBuildTask>()
-                    .set(KgBuildTask::getStatus, "extracting").set(KgBuildTask::getProgress, 10).eq(KgBuildTask::getId, taskId));
-
-            String prompt = "你是一个知识图谱实体关系抽取专家。请从以下教育文本中抽取实体和关系。\n\n" +
-                    "实体类型：chapter(章), section(节), concept(知识点), formula(公式), method(方法)\n" +
-                    "关系类型：CONTAINS(包含), PREREQUISITE(前置依赖), RELATES_TO(关联)\n\n" +
-                    "请以JSON格式返回：{\"entities\":[{\"name\":\"...\",\"type\":\"...\",\"description\":\"...\"}], " +
-                    "\"relations\":[{\"source\":\"...\",\"target\":\"...\",\"type\":\"...\"}]}\n\n" +
-                    "文本内容：\n" + documentText;
-
-            ChatRequest request = new ChatRequest();
-            request.setMessages(List.of(createMessage("user", prompt)));
-            String response = openClawClient.chatCompletion(request);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("raw_response", response);
-
-            buildTaskMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KgBuildTask>()
-                    .set(KgBuildTask::getStatus, "extracted").set(KgBuildTask::getProgress, 100)
-                    .set(KgBuildTask::getResult, result).eq(KgBuildTask::getId, taskId));
-        } catch (Exception e) {
-            log.error("Extraction failed for task {}", taskId, e);
-            buildTaskMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KgBuildTask>()
-                    .set(KgBuildTask::getStatus, "failed").set(KgBuildTask::getErrorMessage, e.getMessage())
-                    .eq(KgBuildTask::getId, taskId));
-        }
     }
 
     // --- Step 3: Approve extraction results ---

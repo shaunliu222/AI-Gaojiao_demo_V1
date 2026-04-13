@@ -46,7 +46,7 @@ public class OpenClawClient {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)
-                .block(Duration.ofSeconds(60));
+                .block(Duration.ofSeconds(120));
     }
 
     /**
