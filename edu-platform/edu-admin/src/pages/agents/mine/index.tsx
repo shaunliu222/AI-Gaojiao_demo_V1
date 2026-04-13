@@ -74,25 +74,48 @@ const AgentMinePage: React.FC = () => {
     return matchSearch && matchStatus;
   });
 
-  const handleCreate = (publish = false) => {
-    form.validateFields().then(async (values) => {
-      try {
-        const status = publish ? 'published' : 'draft';
-        const isPublic = publish ? (values.visibility === 'public') : false;
-        const res: any = await agentApi.create({ ...values, agentType, status, isPublic });
-        if (publish && res.data?.id) {
-          const channels = values.publishChannels || ['web'];
-          for (const ch of channels) {
-            await agentApi.publish(res.data.id, { channelType: ch });
-          }
+  const handleCreate = async (publish = false) => {
+    try {
+      // Use getFieldsValue to get ALL fields across all steps (not just current visible step)
+      const values = form.getFieldsValue(true);
+      if (!values.name) { message.warning('请填写智能体名称'); return; }
+
+      const status = publish ? 'published' : 'draft';
+      const isPublic = publish ? (values.visibility === 'public') : false;
+
+      // Build config from form values
+      const config: any = {};
+      if (values.primaryModel) config.primaryModel = values.primaryModel;
+      if (values.fallbackModels) config.fallbackModels = values.fallbackModels;
+      if (values.thinkingDefault) config.thinkingDefault = values.thinkingDefault;
+      if (values.skills) config.skills = values.skills;
+      if (values.mcpServers) config.mcpServers = values.mcpServers;
+      if (values.memorySearch !== undefined) config.memorySearch = values.memorySearch;
+      if (values.subagentsEnabled !== undefined) config.subagents = { allowAgents: values.subagentsEnabled };
+
+      const payload = {
+        name: values.name,
+        description: values.description,
+        category: values.category,
+        agentType,
+        status,
+        isPublic,
+        config,
+      };
+
+      const res: any = await agentApi.create(payload);
+      if (publish && res.data?.id) {
+        const channels = values.publishChannels || ['web'];
+        for (const ch of channels) {
+          await agentApi.publish(res.data.id, { channelType: ch });
         }
-        message.success(publish ? '智能体已发布' : '草稿已保存');
-        setCreateOpen(false);
-        setStep(0);
-        form.resetFields();
-        agentApi.list({ page: 1, size: 100 }).then((r: any) => setAgents(r.data?.list || []));
-      } catch (err: any) { message.error(err.response?.data?.message || '创建失败'); }
-    }).catch(() => { message.warning('请填写必填项'); });
+      }
+      message.success(publish ? '智能体已发布' : '草稿已保存');
+      setCreateOpen(false);
+      setStep(0);
+      form.resetFields();
+      agentApi.list({ page: 1, size: 100 }).then((r: any) => setAgents(r.data?.list || []));
+    } catch (err: any) { message.error(err.response?.data?.message || '操作失败'); }
   };
 
   const resetCreate = () => { setCreateOpen(false); setStep(0); setAgentType('openclaw'); form.resetFields(); };
@@ -187,7 +210,7 @@ const AgentMinePage: React.FC = () => {
       {/* Create Agent Modal */}
       <Modal title="创建智能体" open={createOpen} onCancel={resetCreate} footer={null} width={700} destroyOnClose>
         <Steps current={step} size="small" style={{ marginBottom: 24 }} items={stepItems} />
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form form={form} layout="vertical">
 
           {/* Step 0: Choose type */}
           {step === 0 && (
