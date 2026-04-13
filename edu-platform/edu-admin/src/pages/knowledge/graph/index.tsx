@@ -66,6 +66,7 @@ const KnowledgeGraphPage: React.FC = () => {
   const handleCreateGraph = async () => {
     try {
       const values = await createForm.validateFields();
+      values.isPublic = values.isPublic === true || values.isPublic === 'true';
       await knowledgeApi.createGraph(values);
       message.success('图谱创建成功');
       setCreateOpen(false);
@@ -156,7 +157,7 @@ const KnowledgeGraphPage: React.FC = () => {
         ]} />
         <Input placeholder="搜索图谱..." prefix={<SearchOutlined />} size="small" value={search} onChange={e => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
         <Button type="dashed" icon={<PlusOutlined />} block size="small" style={{ marginBottom: 12 }} onClick={() => setCreateOpen(true)}>创建图谱</Button>
-        <List dataSource={graphs.filter(g => graphTab === 'public' ? g.isPublic : !g.isPublic)} renderItem={item => (
+        <List dataSource={graphTab === 'public' ? graphs.filter(g => g.isPublic) : graphs} renderItem={item => (
           <Card size="small" hoverable onClick={() => setSelectedGraphId(item.id)}
             style={{ marginBottom: 8, borderRadius: 8, borderLeft: `3px solid ${item.id === selectedGraphId ? '#1890ff' : '#d9d9d9'}`, background: item.id === selectedGraphId ? '#e6f7ff' : '#fff' }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>{item.name}</div>
@@ -334,7 +335,10 @@ const KnowledgeGraphPage: React.FC = () => {
           <Form.Item name="name" label="图谱名称" rules={[{ required: true }]}><Input placeholder="如：计算机科学基础" /></Form.Item>
           <Form.Item name="description" label="描述"><Input placeholder="图谱内容描述" /></Form.Item>
           <Form.Item name="isPublic" label="可见性" initialValue={false}>
-            <Tabs items={[{ key: 'false', label: '私有' }, { key: 'true', label: '公共' }]} />
+            <select style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d9d9d9' }}>
+              <option value="false">🔒 私有 — 仅自己可见</option>
+              <option value="true">🌐 公共 — 全校可见</option>
+            </select>
           </Form.Item>
         </Form>
       </Modal>
