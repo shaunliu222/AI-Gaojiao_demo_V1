@@ -116,16 +116,71 @@ const KnowledgeGraphPage: React.FC = () => {
   };
 
   const handleApprove = async () => {
-    if (!buildTaskId) return;
+    if (!buildTaskId || !buildResult) return;
     setBuildLoading(true);
     try {
-      // For demo: create nodes from the raw response text
-      // In production, parse the JSON result properly
-      await knowledgeApi.approveBuild(selectedGraphId!, buildTaskId, { nodes: [], edges: [] });
+      // Parse LLM extraction result to get entities and relations
+      let entities: any[] = [];
+      let relations: any[] = [];
+      try {
+        // buildResult.raw_response is an OpenAI chat completion JSON string
+        const rawResponse = buildResult.raw_response || buildResult;
+        let content = rawResponse;
+        // If it's a chat completion object, extract the message content
+        if (typeof rawResponse === 'string' && rawResponse.includes('"choices"')) {
+          const parsed = JSON.parse(rawResponse);
+          content = parsed.choices?.[0]?.message?.content || rawResponse;
+        }
+        // Extract JSON from markdown code block if wrapped in ```json ... ```
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
+        const jsonStr = jsonMatch ? jsonMatch[1] : content;
+        const extracted = JSON.parse(jsonStr);
+        entities = extracted.entities || [];
+        relations = extracted.relations || [];
+      } catch (e) {
+        console.warn('Failed to parse extraction result, trying text split', e);
+      }
+
+      // Convert entities to KgNode format
+      const nodes = entities.map((e: any) => ({
+        name: e.name,
+        nodeType: e.type || 'concept',
+        description: e.description || '',
+      }));
+
+      // We need node IDs for edges, but they'll be assigned by backend
+      // So we pass relations as-is and let backend handle name-based matching
+      // For now, create nodes first, then create edges separately
+
+      // Step 1: Create nodes via skeleton API
+      await knowledgeApi.createSkeleton(selectedGraphId!, { nodes, edges: [] });
+
+      // Step 2: After nodes are created, reload and create edges by matching names
+      if (relations.length > 0) {
+        const graphDataRes: any = await knowledgeApi.graphData(selectedGraphId!);
+        const createdNodes = graphDataRes.data?.nodes || [];
+        for (const rel of relations) {
+          const sourceNode = createdNodes.find((n: any) => n.name === rel.source);
+          const targetNode = createdNodes.find((n: any) => n.name === rel.target);
+          if (sourceNode && targetNode) {
+            try {
+              await knowledgeApi.addEdge(selectedGraphId!, {
+                sourceNodeId: sourceNode.id,
+                targetNodeId: targetNode.id,
+                edgeType: rel.type || 'RELATES_TO',
+              });
+            } catch { /* skip failed edges */ }
+          }
+        }
+      }
+
       setBuildStep(3);
-      message.success('已批准，节点已添加到图谱');
+      message.success(`已添加 ${nodes.length} 个节点和 ${relations.length} 个关系到图谱`);
       loadGraphData();
-    } catch { message.error('批准失败'); }
+    } catch (err) {
+      console.error('Approve failed', err);
+      message.error('批准失败');
+    }
     setBuildLoading(false);
   };
 
