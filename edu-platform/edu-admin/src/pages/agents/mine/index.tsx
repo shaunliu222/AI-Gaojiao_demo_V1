@@ -216,13 +216,13 @@ const AgentMinePage: React.FC = () => {
             </div>
             <Form.Item name="primaryModel" label="主模型" rules={[{ required: true, message: '请选择主模型' }]}>
               <Select placeholder="选择主模型" options={models.map(m => ({
-                label: <span>{m.alias} <Tag style={{ marginLeft: 8 }}>{m.provider}</Tag></span>,
+                label: <span>{m.alias || m.name} <Tag style={{ marginLeft: 4 }}>{m.provider}</Tag> <span style={{ color: '#999', fontSize: 12 }}>{m.modelName}</span></span>,
                 value: `${m.provider}/${m.modelName}`,
               }))} />
             </Form.Item>
             <Form.Item name="fallbackModels" label={<>备选模型 <Tooltip title="主模型不可用时自动切换。对应 AgentModelConfig.fallbacks"><InfoCircleOutlined /></Tooltip></>}>
               <Select mode="multiple" placeholder="选择备选模型（可选）" options={models.map(m => ({
-                label: `${m.alias} (${m.provider})`,
+                label: `${m.alias || m.name} (${m.provider}) ${m.modelName}`,
                 value: `${m.provider}/${m.modelName}`,
               }))} />
             </Form.Item>
@@ -343,13 +343,13 @@ const AgentMinePage: React.FC = () => {
         <Form form={mainForm} layout="vertical">
           <Form.Item name="primaryModel" label="主模型（从模型管理已配置列表选择）" rules={[{ required: true }]}>
             <Select options={models.map(m => ({
-              label: <span>{m.alias} <Tag style={{ marginLeft: 8 }}>{m.provider}</Tag></span>,
+              label: <span>{m.alias || m.name} <Tag style={{ marginLeft: 4 }}>{m.provider}</Tag> <span style={{ color: '#999', fontSize: 12 }}>{m.modelName}</span></span>,
               value: `${m.provider}/${m.modelName}`,
             }))} />
           </Form.Item>
           <Form.Item name="fallbackModels" label="备选模型">
             <Select mode="multiple" placeholder="选择备选模型（可选）" options={models.map(m => ({
-              label: `${m.alias} (${m.provider})`, value: `${m.provider}/${m.modelName}`,
+              label: `${m.alias || m.name} (${m.provider}) ${m.modelName}`, value: `${m.provider}/${m.modelName}`,
             }))} />
           </Form.Item>
           <Form.Item name="thinkingDefault" label="思考级别">
