@@ -223,8 +223,19 @@ export const aiChatApi = {
         body: JSON.stringify({ ...data, stream: true }),
       });
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
         const text = await response.text();
-        onError(text || `HTTP ${response.status}`);
+        try {
+          const err = JSON.parse(text);
+          onError(err.message || `HTTP ${response.status}`);
+        } catch {
+          onError(text || `HTTP ${response.status}`);
+        }
         return;
       }
       const reader = response.body?.getReader();
