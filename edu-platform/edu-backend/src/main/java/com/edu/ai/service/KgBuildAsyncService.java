@@ -1,14 +1,16 @@
 package com.edu.ai.service;
 
-import com.edu.ai.dto.ChatMessage;
-import com.edu.ai.dto.ChatRequest;
 import com.edu.ai.entity.KgBuildTask;
 import com.edu.ai.mapper.KgBuildTaskMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +21,12 @@ import java.util.Map;
 public class KgBuildAsyncService {
 
     private final KgBuildTaskMapper buildTaskMapper;
-    private final OpenClawClient openClawClient;
+
+    @Value("${openclaw.gateway.url:http://localhost:18789}")
+    private String gatewayUrl;
+
+    @Value("${openclaw.gateway.token:}")
+    private String gatewayToken;
 
     @Async
     public void extractAsync(Long taskId, Long graphId, String documentText) {
@@ -27,21 +34,37 @@ public class KgBuildAsyncService {
             buildTaskMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KgBuildTask>()
                     .set(KgBuildTask::getStatus, "extracting").set(KgBuildTask::getProgress, 10).eq(KgBuildTask::getId, taskId));
 
-            String prompt = "你是一个知识图谱实体关系抽取专家。请从以下教育文本中抽取实体和关系。\n\n" +
-                    "实体类型：chapter(章), section(节), concept(知识点), formula(公式), method(方法)\n" +
-                    "关系类型：CONTAINS(包含), PREREQUISITE(前置依赖), RELATES_TO(关联)\n\n" +
-                    "请以JSON格式返回：{\"entities\":[{\"name\":\"...\",\"type\":\"...\",\"description\":\"...\"}], " +
-                    "\"relations\":[{\"source\":\"...\",\"target\":\"...\",\"type\":\"...\"}]}\n\n" +
-                    "文本内容：\n" + (documentText.length() > 3000 ? documentText.substring(0, 3000) : documentText);
+            String text = documentText.length() > 2000 ? documentText.substring(0, 2000) : documentText;
+            String prompt = "你是知识图谱抽取专家。从以下文本抽取实体和关系，直接返回JSON，不要包裹在代码块中。\n\n" +
+                    "实体类型：chapter, section, concept, formula, method\n" +
+                    "关系类型：CONTAINS, PREREQUISITE, RELATES_TO\n\n" +
+                    "返回格式：{\"entities\":[{\"name\":\"...\",\"type\":\"...\",\"description\":\"...\"}],\"relations\":[{\"source\":\"...\",\"target\":\"...\",\"type\":\"...\"}]}\n\n" +
+                    "文本：\n" + text;
 
-            ChatRequest request = new ChatRequest();
-            ChatMessage msg = new ChatMessage();
-            msg.setRole("user");
-            msg.setContent(prompt);
-            request.setMessages(List.of(msg));
-            String response = openClawClient.chatCompletion(request);
+            // Use dedicated WebClient with 5-minute timeout (not shared OpenClawClient)
+            WebClient client = WebClient.builder()
+                    .baseUrl(gatewayUrl)
+                    .defaultHeader("Authorization", "Bearer " + gatewayToken)
+                    .defaultHeader("x-openclaw-scopes", "operator.write")
+                    .build();
 
-            // Store result as JSON string (H2 compatible — no JSONB)
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", "openclaw");
+            body.put("messages", List.of(Map.of("role", "user", "content", prompt)));
+            body.put("stream", false);
+
+            log.info("Starting LLM extraction for task {} (text length: {})", taskId, text.length());
+
+            String response = client.post()
+                    .uri("/v1/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block(Duration.ofMinutes(5));
+
+            log.info("LLM extraction response received for task {}", taskId);
+
             String resultJson = new com.fasterxml.jackson.databind.ObjectMapper()
                     .writeValueAsString(Map.of("raw_response", response));
 

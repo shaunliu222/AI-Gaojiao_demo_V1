@@ -330,7 +330,7 @@ const KnowledgeGraphPage: React.FC = () => {
           <div style={{ textAlign: 'center', padding: 40 }}>
             <Spin size="large" />
             <Paragraph style={{ marginTop: 16 }}>LLM 正在分析文本，抽取知识实体和关系...</Paragraph>
-            <Paragraph type="secondary">这可能需要 10-30 秒</Paragraph>
+            <Paragraph type="secondary">这可能需要 1-3 分钟，请耐心等待</Paragraph>
           </div>
         )}
 
