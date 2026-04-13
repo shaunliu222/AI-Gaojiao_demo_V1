@@ -176,7 +176,7 @@ const AgentMinePage: React.FC = () => {
       {/* Other agents grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
         {filtered.map(agent => (
-          <Card key={agent.id} hoverable style={{ borderRadius: 12 }}>
+          <Card key={agent.id} style={{ borderRadius: 12, border: '1px solid #f0f0f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
               <Avatar size={48} style={{ background: '#f5f5f5', fontSize: 24 }}>{agent.avatar || '🤖'}</Avatar>
               <div style={{ flex: 1 }}>
@@ -188,10 +188,10 @@ const AgentMinePage: React.FC = () => {
                 </div>
               </div>
             </div>
-            <Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ minHeight: 44, marginBottom: 8 }}>{agent.description || '暂无描述'}</Paragraph>
+            <div style={{ fontSize: 13, color: '#666', minHeight: 44, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{agent.description || '暂无描述'}</div>
             {agent.config?.primaryModel && <div style={{ fontSize: 12, marginBottom: 4 }}>主模型: <Tag>{agent.config.primaryModel}</Tag></div>}
             {agent.category && <div style={{ fontSize: 12, marginBottom: 8 }}>分类: <Tag>{agent.category}</Tag></div>}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0f0f0', paddingTop: 8, marginTop: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0f0f0', paddingTop: 8, marginTop: 8, position: 'relative', zIndex: 10 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>{agent.useCount || 0} 使用</Text>
               <Space size={4}>
                 <Button size="small" onClick={(e) => {
