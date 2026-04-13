@@ -1,7 +1,10 @@
 -- ============================================================
 -- Higher Education AI Platform - Database Schema
--- PostgreSQL 16
+-- PostgreSQL 16 + pgvector
 -- ============================================================
+
+-- Enable pgvector extension for embedding storage
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ========================
 -- 1. Authentication & RBAC

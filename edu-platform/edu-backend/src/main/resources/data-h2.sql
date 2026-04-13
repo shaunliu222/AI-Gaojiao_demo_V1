@@ -107,3 +107,22 @@ MERGE INTO sys_role_permission (role_id, permission_id) KEY(role_id, permission_
 SELECT r.id, p.id FROM sys_role r, sys_permission p WHERE r.code = 'student' AND p.code = 'knowledge';
 MERGE INTO sys_role_permission (role_id, permission_id) KEY(role_id, permission_id)
 SELECT r.id, p.id FROM sys_role r, sys_permission p WHERE r.code = 'student' AND p.code = 'competency';
+
+-- Sample resource categories
+MERGE INTO res_category (name, parent_id, sort_order) KEY(name) VALUES ('教材课件', 0, 1);
+MERGE INTO res_category (name, parent_id, sort_order) KEY(name) VALUES ('试题试卷', 0, 2);
+MERGE INTO res_category (name, parent_id, sort_order) KEY(name) VALUES ('视频音频', 0, 3);
+MERGE INTO res_category (name, parent_id, sort_order) KEY(name) VALUES ('论文文献', 0, 4);
+
+-- Sample default agent (Main Agent)
+MERGE INTO agent_definition (name, description, avatar, category, agent_type, status, owner_id, is_public, use_count, deleted)
+KEY(name)
+VALUES ('Main Agent', '平台默认智能体，与所有渠道的默认对话一致', '🤖', 'general', 'openclaw', 'published', 1, true, 0, 0);
+
+-- Sample skills
+MERGE INTO skill_definition (name, description, skill_type, owner_id, is_public, status, deleted)
+KEY(name)
+VALUES ('教务查询', '查询课表、成绩、选课信息', 'query', 1, true, 1, 0);
+MERGE INTO skill_definition (name, description, skill_type, owner_id, is_public, status, deleted)
+KEY(name)
+VALUES ('知识库检索', '从向量知识库检索相关内容', 'query', 1, true, 1, 0);
