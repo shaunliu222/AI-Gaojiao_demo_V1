@@ -1,50 +1,151 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Tag, Button, Space, Input, Select, Drawer, Typography, List, Steps, Upload, message, Tabs } from 'antd';
-import { PlusOutlined, SearchOutlined, EditOutlined, UploadOutlined, ApartmentOutlined, InboxOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Tag, Button, Space, Input, Drawer, Typography, List, Steps, Upload, message, Tabs, Modal, Form, Spin, Empty } from 'antd';
+import { PlusOutlined, SearchOutlined, EditOutlined, UploadOutlined, InboxOutlined, SendOutlined, DeleteOutlined } from '@ant-design/icons';
 import { knowledgeApi } from '@/services/request';
 
 const { Text, Paragraph } = Typography;
 const { Dragger } = Upload;
+const { TextArea } = Input;
 
-const nodeTypeColors: Record<string, { color: string; label: string }> = {
-  major: { color: '#52c41a', label: '专业' },
-  position: { color: '#fa8c16', label: '岗位' },
-  skill: { color: '#1890ff', label: '技能点' },
-  knowledge: { color: '#eb2f96', label: '知识点' },
+const nodeTypeColors: Record<string, string> = {
+  chapter: '#52c41a', section: '#1890ff', concept: '#eb2f96',
+  formula: '#fa8c16', method: '#722ed1', job: '#13c2c2', competency: '#faad14', course: '#2f54eb',
 };
 
 const KnowledgeGraphPage: React.FC = () => {
-  const [selectedNode, setSelectedNode] = useState<any>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [buildOpen, setBuildOpen] = useState(false);
-  const [graphTab, setGraphTab] = useState('public');
   const [graphs, setGraphs] = useState<any[]>([]);
+  const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
-  const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
+  const [selectedNode, setSelectedNode] = useState<any>(null);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [buildOpen, setBuildOpen] = useState(false);
+  const [queryOpen, setQueryOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [graphTab, setGraphTab] = useState('public');
+  const [search, setSearch] = useState('');
 
-  useEffect(() => {
+  // Build flow state
+  const [buildStep, setBuildStep] = useState(0);
+  const [buildText, setBuildText] = useState('');
+  const [buildTaskId, setBuildTaskId] = useState<number | null>(null);
+  const [buildResult, setBuildResult] = useState<any>(null);
+  const [buildLoading, setBuildLoading] = useState(false);
+
+  // Query state
+  const [queryText, setQueryText] = useState('');
+  const [queryResult, setQueryResult] = useState<any>(null);
+  const [queryLoading, setQueryLoading] = useState(false);
+
+  const [createForm] = Form.useForm();
+
+  const loadGraphs = useCallback(() => {
     knowledgeApi.listGraphs().then((res: any) => {
       const list = res.data || [];
       setGraphs(list);
-      if (list.length > 0) setSelectedGraphId(list[0].id);
+      if (!selectedGraphId && list.length > 0) setSelectedGraphId(list[0].id);
     }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (selectedGraphId) {
-      knowledgeApi.graphData(selectedGraphId).then((res: any) => {
-        setNodes(res.data?.nodes || []);
-        setEdges(res.data?.edges || []);
-      }).catch(() => {});
-    }
   }, [selectedGraphId]);
-  const [search, setSearch] = useState('');
 
-  const handleNodeClick = (node: any) => {
+  useEffect(() => { loadGraphs(); }, []);
+
+  const loadGraphData = useCallback(() => {
+    if (!selectedGraphId) return;
+    knowledgeApi.graphData(selectedGraphId).then((res: any) => {
+      setNodes(res.data?.nodes || []);
+      setEdges(res.data?.edges || []);
+    }).catch(() => {});
+  }, [selectedGraphId]);
+
+  useEffect(() => { loadGraphData(); }, [loadGraphData]);
+
+  const currentGraph = graphs.find(g => g.id === selectedGraphId);
+
+  // --- Graph CRUD ---
+  const handleCreateGraph = async () => {
+    try {
+      const values = await createForm.validateFields();
+      await knowledgeApi.createGraph(values);
+      message.success('图谱创建成功');
+      setCreateOpen(false);
+      createForm.resetFields();
+      loadGraphs();
+    } catch { message.error('创建失败'); }
+  };
+
+  // --- Node click → show attachments ---
+  const handleNodeClick = async (node: any) => {
     setSelectedNode(node);
     setDrawerOpen(true);
+    try {
+      const res: any = await knowledgeApi.attachments(selectedGraphId!, node.id);
+      setAttachments(res.data || []);
+    } catch { setAttachments([]); }
   };
+
+  // --- Five-step build ---
+  const handleStartBuild = async () => {
+    if (!buildText.trim()) { message.warning('请输入或粘贴文档内容'); return; }
+    setBuildLoading(true);
+    setBuildStep(1);
+    try {
+      const res: any = await knowledgeApi.triggerBuild(selectedGraphId!, buildText);
+      setBuildTaskId(res.data?.id);
+      message.success('已提交 LLM 抽取任务');
+      // Poll for completion
+      const poll = setInterval(async () => {
+        try {
+          const taskRes: any = await knowledgeApi.getBuildTask(selectedGraphId!, res.data.id);
+          const task = taskRes.data;
+          if (task?.status === 'extracted') {
+            clearInterval(poll);
+            setBuildResult(task.result);
+            setBuildStep(2);
+            setBuildLoading(false);
+            message.success('LLM 抽取完成，请审核结果');
+          } else if (task?.status === 'failed') {
+            clearInterval(poll);
+            setBuildLoading(false);
+            message.error('抽取失败: ' + (task.errorMessage || '未知错误'));
+          }
+        } catch { clearInterval(poll); setBuildLoading(false); }
+      }, 2000);
+    } catch { setBuildLoading(false); message.error('提交失败'); }
+  };
+
+  const handleApprove = async () => {
+    if (!buildTaskId) return;
+    setBuildLoading(true);
+    try {
+      // For demo: create nodes from the raw response text
+      // In production, parse the JSON result properly
+      await knowledgeApi.approveBuild(selectedGraphId!, buildTaskId, { nodes: [], edges: [] });
+      setBuildStep(3);
+      message.success('已批准，节点已添加到图谱');
+      loadGraphData();
+    } catch { message.error('批准失败'); }
+    setBuildLoading(false);
+  };
+
+  // --- Knowledge Query ---
+  const handleQuery = async () => {
+    if (!queryText.trim()) return;
+    setQueryLoading(true);
+    try {
+      const res: any = await knowledgeApi.query(selectedGraphId!, queryText);
+      setQueryResult(res.data);
+    } catch { message.error('检索失败'); }
+    setQueryLoading(false);
+  };
+
+  // --- Render graph nodes with auto-layout ---
+  const layoutNodes = nodes.map((node, i) => {
+    const cols = Math.ceil(Math.sqrt(nodes.length));
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    return { ...node, x: 60 + col * 140, y: 40 + row * 120 };
+  });
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 112px)', margin: -24, overflow: 'hidden' }}>
@@ -54,114 +155,189 @@ const KnowledgeGraphPage: React.FC = () => {
           { key: 'public', label: '公共图谱' }, { key: 'mine', label: '我的图谱' },
         ]} />
         <Input placeholder="搜索图谱..." prefix={<SearchOutlined />} size="small" value={search} onChange={e => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
-        <Button type="dashed" icon={<PlusOutlined />} block size="small" style={{ marginBottom: 12 }}>创建图谱</Button>
+        <Button type="dashed" icon={<PlusOutlined />} block size="small" style={{ marginBottom: 12 }} onClick={() => setCreateOpen(true)}>创建图谱</Button>
         <List dataSource={graphs.filter(g => graphTab === 'public' ? g.isPublic : !g.isPublic)} renderItem={item => (
-          <Card size="small" hoverable style={{ marginBottom: 8, borderRadius: 8, borderLeft: `3px solid ${item.status === 'building' ? '#faad14' : '#52c41a'}` }}>
+          <Card size="small" hoverable onClick={() => setSelectedGraphId(item.id)}
+            style={{ marginBottom: 8, borderRadius: 8, borderLeft: `3px solid ${item.id === selectedGraphId ? '#1890ff' : '#d9d9d9'}`, background: item.id === selectedGraphId ? '#e6f7ff' : '#fff' }}>
             <div style={{ fontWeight: 600, fontSize: 13 }}>{item.name}</div>
-            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-              {item.nodeCount} 节点 · {item.edgeCount} 关系
-              {item.status === 'building' && <Tag color="orange" style={{ marginLeft: 8 }}>构建中</Tag>}
-            </div>
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>{item.nodeCount || 0} 节点 · {item.edgeCount || 0} 关系</div>
           </Card>
         )} />
       </div>
 
       {/* Center - graph visualization */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Toolbar */}
         <div style={{ padding: '12px 20px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
-            <Text strong>数字媒体技术专业图谱</Text>
-            <Tag>专业(1)</Tag><Tag>岗位(8)</Tag><Tag>技能点(42)</Tag><Tag>知识点(72)</Tag>
+            <Text strong>{currentGraph?.name || '选择图谱'}</Text>
+            <Tag>{nodes.length} 节点</Tag><Tag>{edges.length} 关系</Tag>
           </Space>
           <Space>
-            <Button size="small" icon={<UploadOutlined />} onClick={() => setBuildOpen(true)}>上传资料构建</Button>
-            <Button size="small" icon={<EditOutlined />}>编辑图谱</Button>
+            <Button size="small" icon={<SearchOutlined />} onClick={() => setQueryOpen(true)} type="primary" style={{ background: '#1a1a2e' }}>图谱检索问答</Button>
+            <Button size="small" icon={<UploadOutlined />} onClick={() => { setBuildOpen(true); setBuildStep(0); setBuildText(''); setBuildResult(null); }}>上传资料构建</Button>
           </Space>
         </div>
 
-        {/* Graph area - course tabs */}
-        <div style={{ padding: '8px 20px', borderBottom: '1px solid #f5f5f5' }}>
-          <Space size={4}>
-            {['影视后期制作', '渲染', '3D建模', '算法工程', '交互设计工作室'].map(c => (
-              <Tag key={c} style={{ cursor: 'pointer', borderRadius: 4 }}>{c}</Tag>
-            ))}
-          </Space>
-        </div>
-
-        {/* Graph canvas placeholder with CSS nodes */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#fafbfc' }}>
-          {nodes.map(node => (
-            <div key={node.id} onClick={() => handleNodeClick(node)} style={{
-              position: 'absolute', left: node.x, top: node.y,
-              width: 80, height: 80, borderRadius: '50%',
-              border: `3px solid ${node.color}`, background: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, textAlign: 'center', padding: 4, cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)', transition: 'transform 0.2s',
-              zIndex: 1,
-            }}
-              onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
-              onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
-              {node.label}
+        {/* Graph canvas */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'auto', background: '#fafbfc' }}>
+          {nodes.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Empty description="暂无节点，点击「上传资料构建」开始" />
             </div>
-          ))}
-          {/* SVG edges */}
-          <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-            {edges.map((edge, i) => {
-              const s = nodes.find(n => n.id === edge.sourceNodeId);
-              const t = nodes.find(n => n.id === edge.targetNodeId);
-              if (!s || !t) return null;
-              return <line key={i} x1={s.x + 40} y1={s.y + 40} x2={t.x + 40} y2={t.y + 40} stroke="#d9d9d9" strokeWidth={1.5} />;
-            })}
-          </svg>
-          {/* Legend */}
-          <div style={{ position: 'absolute', bottom: 16, left: 16, display: 'flex', gap: 12, background: '#fff', padding: '8px 12px', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-            {Object.entries(nodeTypeColors).map(([key, { color, label }]) => (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
-                <span>{label}</span>
+          ) : (<>
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+              {edges.map((edge, i) => {
+                const s = layoutNodes.find(n => n.id === edge.sourceNodeId);
+                const t = layoutNodes.find(n => n.id === edge.targetNodeId);
+                if (!s || !t) return null;
+                return <line key={i} x1={s.x + 40} y1={s.y + 40} x2={t.x + 40} y2={t.y + 40} stroke="#d9d9d9" strokeWidth={1.5} />;
+              })}
+            </svg>
+            {layoutNodes.map(node => (
+              <div key={node.id} onClick={() => handleNodeClick(node)} style={{
+                position: 'absolute', left: node.x, top: node.y,
+                minWidth: 80, padding: '8px 12px', borderRadius: 8,
+                border: `2px solid ${nodeTypeColors[node.nodeType] || '#999'}`, background: '#fff',
+                fontSize: 12, textAlign: 'center', cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)', zIndex: 1, maxWidth: 120,
+              }}>
+                <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 2 }}>{node.name}</div>
+                <Tag color={nodeTypeColors[node.nodeType]} style={{ fontSize: 10 }}>{node.nodeType}</Tag>
               </div>
             ))}
-          </div>
+          </>)}
         </div>
       </div>
 
       {/* Node detail drawer */}
-      <Drawer title={selectedNode?.label || '节点详情'} open={drawerOpen} onClose={() => setDrawerOpen(false)} width={360}>
+      <Drawer title={selectedNode?.name || '节点详情'} open={drawerOpen} onClose={() => setDrawerOpen(false)} width={400}>
         {selectedNode && (<>
           <div style={{ marginBottom: 16 }}>
-            <Tag color={nodeTypeColors[selectedNode.type]?.color}>{nodeTypeColors[selectedNode.type]?.label}</Tag>
+            <Tag color={nodeTypeColors[selectedNode.nodeType]}>{selectedNode.nodeType}</Tag>
+            <Text type="secondary">ID: {selectedNode.id}</Text>
           </div>
-          <Paragraph><Text strong>描述：</Text>这是 {selectedNode.label} 的详细描述信息。</Paragraph>
+          <Paragraph>{selectedNode.description || '暂无描述'}</Paragraph>
           <div style={{ marginTop: 16 }}>
-            <Text strong>挂载的知识片段：</Text>
-            <List size="small" style={{ marginTop: 8 }} dataSource={[
-              { title: `${selectedNode.label} 基础概念`, source: '高等数学 第三章' },
-              { title: `${selectedNode.label} 应用实例`, source: '课程讲义 P.45' },
-            ]} renderItem={item => (
-              <List.Item><Text style={{ fontSize: 13 }}>📎 {item.title}</Text><Text type="secondary" style={{ fontSize: 11 }}>{item.source}</Text></List.Item>
-            )} />
+            <Text strong>挂载的知识片段 ({attachments.length})</Text>
+            {attachments.length === 0 ? <Empty description="暂无知识片段" style={{ marginTop: 12 }} /> : (
+              <List size="small" style={{ marginTop: 8 }} dataSource={attachments} renderItem={(item: any) => (
+                <List.Item><Paragraph style={{ fontSize: 13, margin: 0 }} ellipsis={{ rows: 3 }}>{item.contentSnippet}</Paragraph></List.Item>
+              )} />
+            )}
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <Text strong>手动挂载知识</Text>
+            <TextArea rows={3} placeholder="输入知识片段内容..." style={{ marginTop: 8 }} id="attachInput" />
+            <Button type="primary" size="small" style={{ marginTop: 8, background: '#1a1a2e' }} onClick={async () => {
+              const input = (document.getElementById('attachInput') as HTMLTextAreaElement)?.value;
+              if (!input?.trim()) return;
+              try {
+                await knowledgeApi.attach(selectedGraphId!, { nodeId: selectedNode.id, content: input });
+                message.success('已挂载');
+                const res: any = await knowledgeApi.attachments(selectedGraphId!, selectedNode.id);
+                setAttachments(res.data || []);
+              } catch { message.error('挂载失败'); }
+            }}>挂载到此节点</Button>
           </div>
         </>)}
       </Drawer>
 
-      {/* Build modal */}
-      <Drawer title="上传资料构建图谱" open={buildOpen} onClose={() => setBuildOpen(false)} width={480}>
-        <Steps current={0} size="small" direction="vertical" items={[
-          { title: '上传资料', description: '上传 PDF/文档，MinerU 解析为 Markdown' },
-          { title: 'LLM 抽取', description: '从 Markdown 中自动抽取实体和关系' },
-          { title: '人工校验', description: '在图谱中确认/修改/删除抽取结果' },
-          { title: '知识挂载', description: '将知识片段关联到图谱节点' },
-          { title: '完成', description: '图谱可用于检索问答' },
+      {/* Five-step build drawer */}
+      <Drawer title="五步构建图谱" open={buildOpen} onClose={() => setBuildOpen(false)} width={560}>
+        <Steps current={buildStep} size="small" style={{ marginBottom: 24 }} items={[
+          { title: '输入内容' },
+          { title: 'LLM 抽取' },
+          { title: '审核确认' },
+          { title: '完成' },
         ]} />
-        <div style={{ marginTop: 24 }}>
-          <Dragger beforeUpload={() => { message.success('已上传（Mock），开始解析...'); return false; }}>
-            <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-            <p className="ant-upload-text">拖拽教材/文档到此处</p>
-          </Dragger>
-        </div>
+
+        {buildStep === 0 && (<>
+          <Paragraph type="secondary">粘贴教材/文档文本内容，LLM 将自动抽取知识实体和关系。（无需 MinerU，直接使用 LLM 解析）</Paragraph>
+          <TextArea rows={12} value={buildText} onChange={e => setBuildText(e.target.value)}
+            placeholder="粘贴教材内容...&#10;&#10;例如：&#10;第一章 数据结构基础&#10;1.1 线性表&#10;线性表是最基本的数据结构之一，包括顺序表和链表两种实现方式...&#10;1.2 栈和队列&#10;栈是一种后进先出（LIFO）的数据结构..." />
+          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <Dragger beforeUpload={(file) => {
+              const reader = new FileReader();
+              reader.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('文件内容已加载'); };
+              reader.readAsText(file);
+              return false;
+            }} showUploadList={false} style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 13 }}><InboxOutlined /> 或拖拽 .txt/.md 文件</p>
+            </Dragger>
+          </div>
+          <Button type="primary" block style={{ marginTop: 16, background: '#1a1a2e' }} loading={buildLoading} onClick={handleStartBuild}>
+            提交 LLM 抽取
+          </Button>
+        </>)}
+
+        {buildStep === 1 && (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Spin size="large" />
+            <Paragraph style={{ marginTop: 16 }}>LLM 正在分析文本，抽取知识实体和关系...</Paragraph>
+            <Paragraph type="secondary">这可能需要 10-30 秒</Paragraph>
+          </div>
+        )}
+
+        {buildStep === 2 && (<>
+          <Paragraph strong>LLM 抽取结果：</Paragraph>
+          <div style={{ background: '#f6f8fa', padding: 12, borderRadius: 8, maxHeight: 400, overflow: 'auto', fontSize: 13, whiteSpace: 'pre-wrap' }}>
+            {typeof buildResult === 'string' ? buildResult :
+             buildResult?.raw_response ? String(buildResult.raw_response) :
+             JSON.stringify(buildResult, null, 2)}
+          </div>
+          <Space style={{ marginTop: 16 }}>
+            <Button type="primary" style={{ background: '#52c41a' }} onClick={handleApprove} loading={buildLoading}>批准并添加到图谱</Button>
+            <Button onClick={() => { setBuildStep(0); setBuildResult(null); }}>重新抽取</Button>
+          </Space>
+        </>)}
+
+        {buildStep === 3 && (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <div style={{ fontSize: 48 }}>✅</div>
+            <Paragraph strong style={{ fontSize: 16, marginTop: 16 }}>构建完成</Paragraph>
+            <Paragraph type="secondary">图谱节点已更新，可用于检索问答</Paragraph>
+            <Button type="primary" onClick={() => { setBuildOpen(false); loadGraphData(); }} style={{ background: '#1a1a2e' }}>查看图谱</Button>
+          </div>
+        )}
       </Drawer>
+
+      {/* Knowledge Query drawer */}
+      <Drawer title="图谱检索问答" open={queryOpen} onClose={() => { setQueryOpen(false); setQueryResult(null); }} width={520}>
+        <Paragraph type="secondary">基于知识图谱结构检索 + 挂载知识片段 → LLM 生成有据可查的回答</Paragraph>
+        <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+          <Input placeholder="输入问题..." value={queryText} onChange={e => setQueryText(e.target.value)}
+            onPressEnter={handleQuery} style={{ flex: 1 }} />
+          <Button type="primary" icon={<SendOutlined />} onClick={handleQuery} loading={queryLoading} style={{ background: '#1a1a2e' }}>检索</Button>
+        </Space.Compact>
+
+        {queryResult && (<>
+          <Card size="small" style={{ marginBottom: 12, background: '#f6f8fa' }}>
+            <Text strong>匹配节点：</Text> {(queryResult.matchedNodes || []).map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
+            <br /><Text strong>知识片段：</Text> {queryResult.snippetCount || 0} 条
+          </Card>
+          <Card size="small" title="AI 回答">
+            <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{queryResult.answer}</Paragraph>
+          </Card>
+          {queryResult.snippets?.length > 0 && (
+            <Card size="small" title="参考知识片段" style={{ marginTop: 12 }}>
+              <List size="small" dataSource={queryResult.snippets} renderItem={(s: string, i: number) => (
+                <List.Item><Text style={{ fontSize: 12 }}>📎 片段{i + 1}: {s}</Text></List.Item>
+              )} />
+            </Card>
+          )}
+        </>)}
+      </Drawer>
+
+      {/* Create graph modal */}
+      <Modal title="创建知识图谱" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={handleCreateGraph} okButtonProps={{ style: { background: '#1a1a2e' } }}>
+        <Form form={createForm} layout="vertical">
+          <Form.Item name="name" label="图谱名称" rules={[{ required: true }]}><Input placeholder="如：计算机科学基础" /></Form.Item>
+          <Form.Item name="description" label="描述"><Input placeholder="图谱内容描述" /></Form.Item>
+          <Form.Item name="isPublic" label="可见性" initialValue={false}>
+            <Tabs items={[{ key: 'false', label: '私有' }, { key: 'true', label: '公共' }]} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
