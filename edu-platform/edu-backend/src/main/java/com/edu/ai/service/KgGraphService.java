@@ -231,6 +231,7 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
                 ));
             }
 
+            updateCounts(graphId);
             return Map.of("attached", attached, "chunks", results.size(), "details", results);
         } catch (Exception e) {
             log.error("Auto-attach failed for graph {}", graphId, e);
@@ -298,6 +299,16 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
         result.put("snippetCount", snippets.size());
         result.put("snippets", snippets.stream().map(KgAttachment::getContentSnippet).filter(Objects::nonNull).toList());
         return result;
+    }
+
+    /**
+     * Get attachment count per node for a graph.
+     * Returns map of nodeId(String) → count.
+     */
+    public Map<String, Long> getAttachmentCounts(Long graphId) {
+        List<KgAttachment> all = attachmentMapper.selectList(
+                new LambdaQueryWrapper<KgAttachment>().eq(KgAttachment::getGraphId, graphId));
+        return all.stream().collect(Collectors.groupingBy(KgAttachment::getNodeId, Collectors.counting()));
     }
 
     // --- Helpers ---

@@ -17,6 +17,7 @@ const KnowledgeGraphPage: React.FC = () => {
   const [selectedGraphId, setSelectedGraphId] = useState<number | null>(null);
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({});
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -55,7 +56,10 @@ const KnowledgeGraphPage: React.FC = () => {
     knowledgeApi.graphData(selectedGraphId).then((res: any) => {
       setNodes(res.data?.nodes || []);
       setEdges(res.data?.edges || []);
+      setAttachmentCounts(res.data?.attachmentCounts || {});
     }).catch(() => {});
+    // Refresh sidebar counts
+    knowledgeApi.listGraphs().then((res: any) => setGraphs(res.data || [])).catch(() => {});
   }, [selectedGraphId]);
 
   useEffect(() => { loadGraphData(); }, [loadGraphData]);
@@ -249,7 +253,9 @@ const KnowledgeGraphPage: React.FC = () => {
                 return <line key={i} x1={s.x + 40} y1={s.y + 40} x2={t.x + 40} y2={t.y + 40} stroke="#d9d9d9" strokeWidth={1.5} />;
               })}
             </svg>
-            {layoutNodes.map(node => (
+            {layoutNodes.map(node => {
+              const snippetCount = attachmentCounts[String(node.id)] || 0;
+              return (
               <div key={node.id} onClick={() => handleNodeClick(node)} style={{
                 position: 'absolute', left: node.x, top: node.y,
                 minWidth: 80, padding: '8px 12px', borderRadius: 8,
@@ -259,8 +265,12 @@ const KnowledgeGraphPage: React.FC = () => {
               }}>
                 <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 2 }}>{node.name}</div>
                 <Tag color={nodeTypeColors[node.nodeType]} style={{ fontSize: 10 }}>{node.nodeType}</Tag>
+                {snippetCount > 0 && (
+                  <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>📎 {snippetCount}</div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </>)}
         </div>
       </div>
@@ -292,6 +302,7 @@ const KnowledgeGraphPage: React.FC = () => {
                 message.success('已挂载');
                 const res: any = await knowledgeApi.attachments(selectedGraphId!, selectedNode.id);
                 setAttachments(res.data || []);
+                loadGraphData();
               } catch { message.error('挂载失败'); }
             }}>挂载到此节点</Button>
           </div>

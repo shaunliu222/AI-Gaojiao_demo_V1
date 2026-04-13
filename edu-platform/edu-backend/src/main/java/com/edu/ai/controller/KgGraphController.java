@@ -68,6 +68,7 @@ public class KgGraphController {
         Map<String, Object> data = new HashMap<>();
         data.put("nodes", kgService.getNodes(id));
         data.put("edges", kgService.getEdges(id));
+        data.put("attachmentCounts", kgService.getAttachmentCounts(id));
         return R.ok(data);
     }
 
