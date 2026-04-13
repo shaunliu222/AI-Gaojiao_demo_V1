@@ -317,13 +317,19 @@ const AgentMinePage: React.FC = () => {
           {/* OpenClaw: Step 4 - Permissions & Publish */}
           {step === 4 && agentType === 'openclaw' && (<>
             <Form.Item name="isPublic" label="可见性" initialValue={false}>
-              <Radio.Group options={[{ label: '私有', value: false }, { label: '公共（全校可用）', value: true }]} />
+              <Radio.Group options={[{ label: '🔒 私有', value: false }, { label: '🌐 公共', value: true }]} />
             </Form.Item>
-            <Form.Item name="authorizedOrgs" label="授权学院（公共时生效）">
-              <Select mode="multiple" placeholder="选择授权学院" options={[
-                { label: '计算机学院', value: 'CS' }, { label: '信息工程学院', value: 'IE' },
-                { label: '数学学院', value: 'MATH' }, { label: '全校', value: 'ALL' },
-              ]} />
+            <Form.Item noStyle shouldUpdate={(prev, cur) => prev.isPublic !== cur.isPublic}>
+              {({ getFieldValue }) => getFieldValue('isPublic') === true ? (
+                <Form.Item name="authorizedOrgs" label="授权学院（不选则全校可用）">
+                  <Select mode="multiple" placeholder="选择授权范围" options={[
+                    { label: '全校', value: 'ALL' },
+                    { label: '计算机学院', value: 'CS' },
+                    { label: '信息工程学院', value: 'IE' },
+                    { label: '数学学院', value: 'MATH' },
+                  ]} />
+                </Form.Item>
+              ) : null}
             </Form.Item>
             <Form.Item name="publishChannels" label="发布渠道">
               <Select mode="multiple" placeholder="选择发布渠道" options={[
@@ -356,12 +362,24 @@ const AgentMinePage: React.FC = () => {
           {/* Low-code: Step 3 or API: Step 2 - Permissions */}
           {((step === 3 && agentType === 'lowcode') || (step === 2 && agentType === 'api')) && (<>
             <Form.Item name="isPublic" label="可见性" initialValue={false}>
-              <Radio.Group options={[{ label: '私有', value: false }, { label: '公共', value: true }]} />
+              <Radio.Group options={[{ label: '🔒 私有', value: false }, { label: '🌐 公共', value: true }]} />
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(prev, cur) => prev.isPublic !== cur.isPublic}>
+              {({ getFieldValue }) => getFieldValue('isPublic') === true ? (
+                <Form.Item name="authorizedOrgs" label="授权学院（不选则全校可用）">
+                  <Select mode="multiple" placeholder="选择授权范围" options={[
+                    { label: '全校', value: 'ALL' },
+                    { label: '计算机学院', value: 'CS' },
+                    { label: '信息工程学院', value: 'IE' },
+                    { label: '数学学院', value: 'MATH' },
+                  ]} />
+                </Form.Item>
+              ) : null}
             </Form.Item>
             <Form.Item name="publishChannels" label="发布渠道">
               <Select mode="multiple" placeholder="选择发布渠道" options={[
-                { label: 'Web', value: 'web' }, { label: '飞书', value: 'feishu' },
-                { label: '微信', value: 'wechat' }, { label: '门户', value: 'portal' },
+                { label: '🌐 Web', value: 'web' }, { label: '📱 飞书', value: 'feishu' },
+                { label: '💬 微信', value: 'wechat' }, { label: '🏫 门户', value: 'portal' },
               ]} />
             </Form.Item>
           </>)}
