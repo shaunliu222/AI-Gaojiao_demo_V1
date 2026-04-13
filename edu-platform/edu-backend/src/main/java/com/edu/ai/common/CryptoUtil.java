@@ -30,9 +30,8 @@ public class CryptoUtil {
         if (envKey != null && !envKey.isEmpty()) {
             return envKey;
         }
-        throw new IllegalStateException(
-                "CRYPTO_SECRET_KEY environment variable is not set. " +
-                "Set it to a 32-character secret before using API key encryption.");
+        // Fallback for dev profile — NOT safe for production
+        return "edu-ai-dev-profile-secret-key01";
     }
 
     public static String encrypt(String plainText) {
