@@ -150,11 +150,13 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
     }
 
     /**
-     * Step 4 LLM auto-attach: Upload new document → LLM slices into chunks
-     * based on existing graph nodes → auto-attach each chunk to best matching node.
+     * Step 4 LLM auto-attach: Upload new document →
+     * 1. LLM slices into 50-200 char chunks
+     * 2. For each chunk, extract related entities
+     * 3. Match entities to graph nodes (up to 3 most relevant per chunk)
+     * 4. Create attachment records
      */
     public Map<String, Object> autoAttach(Long graphId, String documentText) {
-        // Get existing nodes for context
         List<KgNode> nodes = getNodes(graphId);
         if (nodes.isEmpty()) {
             return Map.of("error", "图谱中没有节点，请先创建骨架或抽取实体");
@@ -165,10 +167,16 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
                 .collect(Collectors.joining("\n"));
 
         String text = documentText.length() > 3000 ? documentText.substring(0, 3000) : documentText;
-        String prompt = "你是知识切片专家。将以下文本切分为知识片段，并匹配到最相关的图谱节点。\n\n" +
+        String prompt = "你是知识切片和实体匹配专家。请完成以下任务：\n\n" +
+                "1. 将文本切分为知识片段（每片段50-200字）\n" +
+                "2. 从每个片段中提取与图谱骨架相关的实体关键词\n" +
+                "3. 将每个片段匹配到最相关的1-3个图谱节点（按相关度排序）\n\n" +
                 "图谱节点列表：\n" + nodeList + "\n\n" +
-                "请将文本切片并返回JSON：{\"chunks\":[{\"nodeId\":节点ID数字,\"content\":\"知识片段内容\"}]}\n" +
-                "每个片段50-200字，匹配到最相关的节点ID。直接返回JSON，不要代码块包裹。\n\n" +
+                "返回JSON（直接返回，不要代码块）：\n" +
+                "{\"chunks\":[\n" +
+                "  {\"content\":\"片段内容\",\"entities\":[\"提取的实体1\",\"实体2\"],\"nodeIds\":[节点ID1,节点ID2]}\n" +
+                "]}\n\n" +
+                "注意：nodeIds 是数字数组，最多3个，按相关度从高到低排列。\n\n" +
                 "文本：\n" + text;
 
         try {
@@ -182,7 +190,6 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
                 var parsed = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response);
                 content = parsed.path("choices").path(0).path("message").path("content").asText(response);
             }
-            // Remove code block wrapper
             var jsonMatch = java.util.regex.Pattern.compile("```json\\s*([\\s\\S]*?)```").matcher(content);
             String jsonStr = jsonMatch.find() ? jsonMatch.group(1) : content;
 
@@ -193,21 +200,41 @@ public class KgGraphService extends ServiceImpl<KgGraphMapper, KgGraph> {
             int attached = 0;
             List<Map<String, Object>> results = new ArrayList<>();
             for (var chunk : chunks) {
-                long nodeId = chunk.path("nodeId").asLong(0);
                 String chunkContent = chunk.path("content").asText("");
-                if (nodeId > 0 && !chunkContent.isEmpty()) {
+                if (chunkContent.isEmpty()) continue;
+
+                // Get entities extracted from this chunk
+                List<String> entities = new ArrayList<>();
+                for (var e : chunk.path("entities")) entities.add(e.asText());
+
+                // Get up to 3 matching node IDs
+                List<Long> nodeIds = new ArrayList<>();
+                for (var nid : chunk.path("nodeIds")) {
+                    if (nodeIds.size() >= 3) break;
+                    nodeIds.add(nid.asLong(0));
+                }
+
+                // Attach chunk to each matched node
+                List<String> attachedNodeNames = new ArrayList<>();
+                for (Long nodeId : nodeIds) {
+                    if (nodeId <= 0) continue;
                     attachKnowledge(graphId, nodeId, chunkContent, null);
                     attached++;
-                    KgNode node = nodes.stream().filter(n -> n.getId() == nodeId).findFirst().orElse(null);
-                    results.add(Map.of("nodeId", nodeId, "nodeName", node != null ? node.getName() : "unknown",
-                            "snippet", chunkContent.substring(0, Math.min(50, chunkContent.length())) + "..."));
+                    KgNode node = nodes.stream().filter(n -> n.getId().equals(nodeId)).findFirst().orElse(null);
+                    if (node != null) attachedNodeNames.add(node.getName());
                 }
+
+                results.add(Map.of(
+                        "snippet", chunkContent.substring(0, Math.min(60, chunkContent.length())) + "...",
+                        "entities", entities,
+                        "attachedTo", attachedNodeNames
+                ));
             }
 
-            return Map.of("attached", attached, "details", results);
+            return Map.of("attached", attached, "chunks", results.size(), "details", results);
         } catch (Exception e) {
-            log.error("Auto-attach failed", e);
-            return Map.of("error", e.getMessage());
+            log.error("Auto-attach failed for graph {}", graphId, e);
+            return Map.of("error", "自动挂载失败: " + e.getMessage());
         }
     }
 

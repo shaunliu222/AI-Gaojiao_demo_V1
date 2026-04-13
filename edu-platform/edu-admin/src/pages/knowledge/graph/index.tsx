@@ -315,11 +315,14 @@ const KnowledgeGraphPage: React.FC = () => {
           </div>
           <Tabs items={[
             { key: 'llm', label: 'LLM 辅助提取', children: (<>
-              <TextArea rows={8} value={buildText} onChange={e => setBuildText(e.target.value)}
+              <TextArea rows={6} value={buildText} onChange={e => setBuildText(e.target.value)}
                 placeholder="粘贴教材目录或核心内容，LLM 自动提取知识骨架..." />
-              <Dragger beforeUpload={(file) => { const r = new FileReader(); r.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('已加载'); }; r.readAsText(file); return false; }} showUploadList={false} style={{ marginTop: 8 }}>
-                <p style={{ margin: 0, fontSize: 13 }}><InboxOutlined /> 拖拽 .txt/.md 文件</p>
-              </Dragger>
+              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Upload beforeUpload={(file) => { const r = new FileReader(); r.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('已加载'); }; r.readAsText(file); return false; }} showUploadList={false}>
+                  <Button size="small" icon={<UploadOutlined />}>选择文件</Button>
+                </Upload>
+                <Text type="secondary" style={{ fontSize: 12 }}>支持 .txt / .md</Text>
+              </div>
               <Button type="primary" block style={{ marginTop: 12, background: '#1a1a2e' }} loading={buildLoading} onClick={handleStartBuild}>
                 LLM 提取骨架并抽取实体
               </Button>
@@ -358,13 +361,16 @@ const KnowledgeGraphPage: React.FC = () => {
         {/* Step 3: 持续挂载 — LLM 自动切片 */}
         {buildStep === 3 && (<>
           <div style={{ background: '#f0f5ff', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
-            <b>Step 4: 持续挂载</b> — 上传新资料，LLM 根据图谱节点自动切片并关联到对应知识点。
+            <b>Step 4: 持续挂载</b> — 上传新资料，LLM 自动切片→提取实体→匹配到图谱节点（每片段最多关联3个节点）。
           </div>
-          <TextArea rows={8} value={buildText} onChange={e => setBuildText(e.target.value)}
-            placeholder="粘贴新的学习资料/教材内容...&#10;LLM 会自动将内容切分为知识片段，匹配到图谱中最相关的节点。" />
-          <Dragger beforeUpload={(file) => { const r = new FileReader(); r.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('已加载'); }; r.readAsText(file); return false; }} showUploadList={false} style={{ marginTop: 8 }}>
-            <p style={{ margin: 0, fontSize: 13 }}><InboxOutlined /> 拖拽 .txt/.md 文件</p>
-          </Dragger>
+          <TextArea rows={6} value={buildText} onChange={e => setBuildText(e.target.value)}
+            placeholder="粘贴学习资料/教材内容..." />
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Upload beforeUpload={(file) => { const r = new FileReader(); r.onload = (e) => { setBuildText(e.target?.result as string || ''); message.success('已加载'); }; r.readAsText(file); return false; }} showUploadList={false}>
+              <Button size="small" icon={<UploadOutlined />}>选择文件</Button>
+            </Upload>
+            <Text type="secondary" style={{ fontSize: 12 }}>支持 .txt / .md 文件</Text>
+          </div>
           <Space style={{ marginTop: 12 }}>
             <Button type="primary" style={{ background: '#1a1a2e' }} loading={buildLoading} onClick={async () => {
               if (!buildText.trim()) { message.warning('请输入资料内容'); return; }
@@ -376,7 +382,7 @@ const KnowledgeGraphPage: React.FC = () => {
                 else { message.success(`已挂载 ${data?.attached || 0} 个知识片段到图谱节点`); }
                 setBuildStep(4);
                 loadGraphData();
-              } catch { message.error('自动挂载失败'); }
+              } catch { message.error('自动挂载失败，请检查后端是否运行'); }
               setBuildLoading(false);
             }}>LLM 自动切片并挂载</Button>
             <Button onClick={() => setBuildStep(4)}>跳过，直接完成</Button>
