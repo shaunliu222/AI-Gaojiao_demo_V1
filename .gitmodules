@@ -1,0 +1,7 @@
+[submodule "openclaw"]
+	path = openclaw
+	url = https://github.com/openclaw/openclaw.git
+
+[submodule "compound-engineering-plugin"]
+	path = compound-engineering-plugin
+	url = https://github.com/EveryInc/compound-engineering-plugin.git
